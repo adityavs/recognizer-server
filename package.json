@@ -1,0 +1,33 @@
+{
+  "name": "recognizer-server",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "NODE_ENV=test ./node_modules/mocha/bin/mocha"
+  },
+  "author": "Martynas Bagdonas",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "config": "^1.29.4",
+    "int64-buffer": "^0.1.10",
+    "koa": "^2.5.0",
+    "koa-body": "^2.5.0",
+    "koa-bodyparser": "^4.2.0",
+    "koa-compress": "^2.0.0",
+    "koa-router": "^7.4.0",
+    "sqlite": "^2.9.1",
+    "winston": "^2.4.0",
+    "xregexp": "^4.1.1",
+    "xxhash": "^0.2.4",
+    "zlib": "^1.0.5"
+  },
+  "devDependencies": {
+    "archiver": "^2.1.1",
+    "chai": "^4.1.2",
+    "mocha": "^5.0.1",
+    "request": "^2.83.0",
+    "request-promise-native": "^1.0.5",
+    "throttle": "^1.0.3"
+  }
+}
