@@ -30,14 +30,17 @@ const Jstor = function () {
 module.exports = Jstor;
 
 Jstor.prototype.getData = function (lbs) {
+	let text = '';
+	let started = false;
 	for (let lb of lbs) {
-		let text = '';
 		for (let line of lb.lines) {
+			if (line.text.indexOf('Chapter Title: ') === 0) started = true;
 			text += line.text + '\n';
 			if (line.text.indexOf('Stable URL: http://www.jstor.org/stable/') === 0) {
 				return text;
 			}
 		}
+		if (!started) text = '';
 	}
 	return null;
 };
@@ -47,28 +50,15 @@ Jstor.prototype.extract = function (page) {
 	let authors = '';
 	let source = '';
 	let published_by = '';
-	
-	let text = '';
+	let text;
 	
 	if (!(text = this.getData(page.lbs))) return 0;
 	
 	let is_book = 0;
-	let text_start = text;
 	
-	// text_start = text.indexOf('Chapter Title: ');
-	//
-	// if (text_start) {
-	// 	is_book = 1;
-	// } else {
-	// 	text_start = text.indexOf('\n\n');
-	// 	if (text_start) {
-	// 		text_start += 2;
-	// 	}
-	// }
-	//
-	// if (!text_start) text_start = text;
-	
-	// console.log("text block:", text.slice(text_start));
+	if (text.indexOf('Chapter Title: ') >= 0) {
+		is_book = 1;
+	}
 	
 	let m;
 	
@@ -81,64 +71,49 @@ Jstor.prototype.extract = function (page) {
 	}
 	
 	if (is_book) {
-		// result.type = 'book-chapter';
-		// if (m = /Chapter Title: ((?:\n|.)*)\nChapter Author\(s\): ((?:\n|.)*)\n\n/.exec(text_start)) {
-		// 	// strcpy(result->title, groups[0]);
-		// 	// strcpy(authors, groups[1]);
-		// 	result.title = m[1];
-		// 	authors = m[2];
-		// 	console.log(m);
-		// }
-		// else if (m = /Chapter Title: ((?:\n|.)*)\n\n/.exec(text_start)) {
-		// 	// strcpy(result->title, groups[0]);
-		// 	result.title = m[1];
-		// 	console.log(m);
-		// }
-		//
-		// if (m = /Book Title: ((?:\n|.)*?)\n(Book |Published by: )/.exec(text_start)) {
-		// 	//strcpy(result->container, groups[0]);
-		// 	result.container = m[1];
-		// 	console.log(m);
-		// }
-		//
-		// if (m = /Book Subtitle: ((?:\n|.)*?)\n(Book |Published by: )/.exec(text_start)) {
-		// 	// strcat(result->container, ": ");
-		// 	// strcat(result->container, groups[0]);
-		// 	result.container += ':' + m[1];
-		// 	console.log(m);
-		// }
-		//
-		// if (!authors && (m = /Book Author\(s\): ((?:\n|.)*?)\n(Book |Published by: )/.exec(text_start))) {
-		// 	// strcpy(authors, groups[0]);
-		// 	authors = m[1];
-		// 	console.log(m);
-		// }
-		//
-		// if (m = /Published by: ((?:\n|.)*?)\nStable URL: "/.exec(text_start)) {
-		// 	// strcat(published_by, groups[0]);
-		// 	published_by = m[1];
-		// 	console.log(m);
-		// }
+		result.type = 'book-chapter';
+		if (m = /Chapter Title: ((?:\n|.)*)\nChapter Author\(s\): ((?:\n|.)*)\nBook Title: /.exec(text)) {
+			result.title = m[1];
+			authors = m[2];
+		}
+		else if (m = /Chapter Title: ((?:\n|.)*)\nBook Title: /.exec(text)) {
+			result.title = m[1];
+		}
+		
+		if (m = /Book Title: ((?:\n|.)*?)\n(Book |Published by: )/.exec(text)) {
+			result.container = m[1];
+		}
+		
+		if (m = /Book Subtitle: ((?:\n|.)*?)\n(Book |Published by: )/.exec(text)) {
+			result.container += ': ' + m[1];
+		}
+		
+		if (!authors && (m = /Book Author\(s\): ((?:\n|.)*?)\n(Book |Published by: )/.exec(text))) {
+			authors = m[1];
+		}
+		
+		if (m = /Published by: ((?:\n|.)*?)\nStable URL: /.exec(text)) {
+			published_by = m[1];
+		}
 	}
 	else {
-		
 		result.type = 'journal-article';
-		if (m = /((?:\n|.)*)\nAuthor\(s\): (.*)\nReview by: (.*)\nSource: (.*)\n/.exec(text_start)) {
+		if (m = /((?:\n|.)*)\nAuthor\(s\): (.*)\nReview by: (.*)\nSource: (.*)\n/.exec(text)) {
 			result.title = m[1];
 			authors = m[3];
 			source = m[4];
 		}
-		else if (m = /((?:\n|.)*)\nAuthor\(s\): (.*)\nSource: (.*)\n/.exec(text_start)) {;
+		else if (m = /((?:\n|.)*)\nAuthor\(s\): (.*)\nSource: (.*)\n/.exec(text)) {
 			result.title = m[1];
 			authors = m[2];
 			source = m[3];
 		}
-		else if (m = /((?:\n|.)*)\nReview by: (.*)\nSource: (.*)\n/.exec(text_start)) {
+		else if (m = /((?:\n|.)*)\nReview by: (.*)\nSource: (.*)\n/.exec(text)) {
 			result.title = m[1];
 			authors = m[2];
 			source = m[3];
 		}
-		else if (m = /((?:\n|.)*)\nSource: (.*)\n/.exec(text_start)) {
+		else if (m = /((?:\n|.)*)\nSource: (.*)\n/.exec(text)) {
 			result.title = m[1];
 			source = m[2];
 		}
@@ -178,7 +153,7 @@ Jstor.prototype.extract = function (page) {
 		
 		let a;
 		if ((a = source.indexOf(' ', c)) || (a = source.indexOf(',', c)) || (a = source.indexOf('\n', c))) {
-			result.volume = source.slice(c, a-1);
+			result.volume = source.slice(c, a - 1);
 		}
 		
 		result.container = source.slice(0, vol);
@@ -202,10 +177,10 @@ Jstor.prototype.extract = function (page) {
 	}
 	
 	
-	if ((pg = source.indexOf(', p. '))>=0) {
+	if ((pg = source.indexOf(', p. ')) >= 0) {
 		result.pages = source.slice(pg + 5);
 	}
-	else if ((pg = source.indexOf(', pp. '))>=0) {
+	else if ((pg = source.indexOf(', pp. ')) >= 0) {
 		result.pages = source.slice(pg + 6);
 	}
 	
@@ -216,14 +191,14 @@ Jstor.prototype.extract = function (page) {
 			c--;
 		}
 		
-		result.publisher = published_by.slice(0, c);
+		result.publisher = published_by.slice(0, c + 1);
 		
 		if (m = /([0-9]{4})\)/.exec(published_by)) {
 			result.year = m[1];
 		}
 	}
 	
-	if(result.title) {
+	if (result.title) {
 		result.title = result.title.trim();
 		result.title = result.title.replace(/\n/g, ' ');
 	}
