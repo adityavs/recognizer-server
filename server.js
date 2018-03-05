@@ -94,6 +94,9 @@ router.post('/recognize', async function (ctx) {
 	log.debug(res);
 });
 
+router.get('/stats', async function (ctx) {
+	ctx.body = {};
+});
 
 app
 	.use(router.routes())
