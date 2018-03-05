@@ -37,12 +37,16 @@ const recognizer = new Recognizer();
 
 
 const app = new Koa();
+app.proxy = true;
+
 const router = new Router();
 
 /**
  * A middleware to catch all errors
  */
 app.use(async function (ctx, next) {
+	let start = Date.now();
+	
 	try {
 		await next()
 	}
@@ -60,6 +64,8 @@ app.use(async function (ctx, next) {
 			log.error(err);
 		}
 	}
+	
+	log.info('%s %s %d %dms %s', ctx.method.toUpperCase(), ctx.url, ctx.status, Date.now() - start, ctx.ip);
 });
 
 app.use(bodyParser());
