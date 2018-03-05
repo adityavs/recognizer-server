@@ -70,7 +70,7 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 	let row;
 	while (row = await stmt.get()) {
 		
-		if (title.length >= 30) return row.doi;
+		if (title.length >= 50) return row.doi;
 		
 		let author1Found = row.author1_len >= 4 && this.findAuthor(text, row.author1_hash, row.author1_len);
 		let author2Found = row.author2_len >= 4 && this.findAuthor(text, row.author2_hash, row.author2_len);
@@ -83,9 +83,9 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 };
 
 Db.prototype.findAuthor = function (text, authorHash, authorLen) {
+	text = new Buffer(text);
 	for (let i = 0; i < text.length - authorLen; i++) {
-		let h = XXHash.hash64(new Buffer(text.slice(i, i + authorLen)), 0, 'buffer').slice(4, 8);
-		h = h.readUInt32LE();
+		let h = XXHash.hash(text.slice(i, i + authorLen),0);
 		if (authorHash === h) {
 			return true;
 		}
