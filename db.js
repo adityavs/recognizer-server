@@ -66,17 +66,20 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 	let title_hash = XXHash.hash64(new Buffer(title), 0, 'buffer');
 	title_hash = Int64LE(title_hash).toString();
 	
-	let stmt = await this.doidata.prepare('SELECT * FROM doidata WHERE title_hash = CAST(? AS INTEGER) LIMIT 6', [title_hash]);
-	let row;
-	while (row = await stmt.get()) {
+	let stmt = await this.doidata.prepare('SELECT * FROM doidata WHERE title_hash = CAST(? AS INTEGER) LIMIT 2', [title_hash]);
+	let row1 = await stmt.get();
+	let row2 = await stmt.get();
+	if (row1) {
+		if (!row2 && title.length >= 50) return row1.doi;
 		
-		if (title.length >= 50) return row.doi;
+		let author1Found = row1.author1_len >= 4 && this.findAuthor(text, row1.author1_hash, row1.author1_len);
+		let author2Found = row1.author2_len >= 4 && this.findAuthor(text, row1.author2_hash, row1.author2_len);
 		
-		let author1Found = row.author1_len >= 4 && this.findAuthor(text, row.author1_hash, row.author1_len);
-		let author2Found = row.author2_len >= 4 && this.findAuthor(text, row.author2_hash, row.author2_len);
-		
-		if (author1Found || author2Found) {
-			return row.doi;
+		if (title.length < 30) {
+			if (author1Found && author2Found) return row1.doi;
+		}
+		else {
+			if (author1Found || author2Found) return row1.doi;
 		}
 	}
 	return 0;
