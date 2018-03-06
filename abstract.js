@@ -13,256 +13,306 @@ Abstract.prototype.extract = function (doc) {
 		
 		res = this.extractSimple(page);
 		if (res) return res;
+		
+		res = this.extractBeforeKeywords(page);
+		if (res) return res;
 	}
 	return null;
 };
 
-Abstract.prototype.isDotLast = function (text) {
-	text = text.trim();
-	return text[text.length - 1] === '.';
-};
-
-Abstract.prototype.extractSimple = function (page) {
-	let abstract = '';
-	let found_abstract = 0;
-	
-	let start = 0;
-	let start_skip = 0;
-	let finish = 0;
-	
-	let error = 0;
-	
-	let abstract_x_min = 0;
-	let abstract_x_max = 0;
-	
-	let txt_x_min = 0;
-	let txt_x_max = 0;
-	
-	for (let flow_i = 0; flow_i < page.flows.length; flow_i++) {
-		let flow = page.flows[flow_i];
-		
-		for (let block_i = 0; block_i < flow.blocks.length; block_i++) {
-			let block = flow.blocks[block_i];
-			
-			for (let line_i = 0; line_i < block.lines.length; line_i++) {
-				let line = block.lines[line_i];
-				
-				if (!found_abstract) {
-					let word = line.words[0].text.toLowerCase();
-					word = word.replace(/[^A-Za-z]$/, '');
-					if (['abstract', 'summary'].includes(word)) {
-						found_abstract = 1;
-						start = 1;
-						start_skip = line.words[0].text.length;
-						abstract_x_min = line.words[0].xMin;
-						abstract_x_max = line.words[0].xMax;
-					}
+Abstract.prototype.extractBeforeKeywords = function (page) {
+	for (let i = 1; i < page.lbs.length; i++) {
+		let lb = page.lbs[i];
+		if (/(keywords|key words|indexing terms)([: a-z]*),([ a-z]*)/.test(lb.lines[0].text.toLowerCase()) &&
+			lb.lines[0].text[0] === lb.lines[0].text[0].toUpperCase()) {
+			let lbPrev = page.lbs[i - 1];
+			let abstract = '';
+			for (let line of lbPrev.lines) {
+				abstract += line.text;
+				if (abstract.length && /[-\u2010]/.test(abstract[abstract.length - 1])) {
+					abstract = abstract.slice(0, abstract.length - 1);
 				}
-				
-				if (start) {
-					for (let word_i = 0; word_i < line.words.length; word_i++) {
-						let word = line.words[word_i];
-						
-						for (let c of word.text) {
-							
-							if (start_skip) {
-								start_skip--;
-							}
-							else {
-								
-								if (!finish && XRegExp('[\\p{Letter}0-9]').test(c)) {
-									finish = 1;
-								}
-								
-								if (finish) {
-									
-									if (!txt_x_min || txt_x_min > word.xMin) {
-										txt_x_min = word.xMin;
-									}
-									
-									if (!txt_x_max || txt_x_max < word.xMax) {
-										txt_x_max = word.xMax;
-									}
-//                                    if(abstract_x_max && word->x_min > abstract_x_max) {
-//                                        return 0;
-//                                    }
-									
-									
-									abstract += c;
-								}
-							}
-						}
-						
-						if (word.space) {
-							if (start_skip) {
-								start_skip--;
-							}
-							else {
-								if (finish) {
-									if (word.space) {
-										abstract += ' ';
-									}
-								}
-							}
-						}
-					}
-				}
-				
-				if (finish) {
-					if (abstract.length && abstract[abstract.length - 1] === '-') {
-						abstract = abstract.slice(0, abstract.length - 1);
-					}
-					else {
+				else {
+					if (!XRegExp('[\\p{Dash_Punctuation}]').test(abstract[abstract.length - 1])) {
 						abstract += ' ';
 					}
 				}
-				
-				if (finish) {
-					//console.log("line:", line.xMax);
-					if (this.isDotLast(abstract) &&
-						line_i >= 2 &&
-						Math.abs(block.lines[line_i - 2].xMax - block.lines[line_i - 1].xMax) < 1.0 &&
-						block.lines[line_i].xMax < block.lines[line_i - 1].xMax - 2) {
-						//console.log("\n\n\n", abstract);
-						
-						if (abstract_x_max > txt_x_max || abstract_x_max < txt_x_min) {
-							return null;
-						}
-						return abstract.trim();
-					}
-				}
 			}
-			
-			if (finish) {
-//                log_debug("%s\n\n\n", abstract);
-				if (!this.isDotLast(abstract)) continue;
-				
-				if (abstract_x_max > txt_x_max || abstract_x_max < txt_x_min) {
-					return null;
-				}
-				return abstract.trim();
+			abstract = abstract.trim();
+			if (
+				abstract[0] === abstract[0].toUpperCase() &&
+				abstract[abstract.length - 1] === '.' &&
+				abstract.length > 200 && abstract.length < 3000
+			) {
+				return abstract;
 			}
-		}
-		
-		if (finish) {
-			//console.log("\n\n\n", abstract);
-			
-			if (abstract_x_max > txt_x_max || abstract_x_max < txt_x_min) {
-				return null;
-			}
-			return abstract.trim();
 		}
 	}
-	
-	return abstract.trim();
+	return null;
 };
 
-Abstract.prototype.is_structured_abstract_name = function (word) {
-	let names = {
-		"background": 1,
-		"methods": 2,
-		"method": 2,
-		"conclusions": 3,
-		"conclusion": 3,
-		"objectives": 4,
-		"objective": 4,
-		"results": 5,
-		"result": 5,
-		"purpose": 6,
-		"measurements": 7
-	};
+Abstract.prototype.extractSimple = function (page) {
 	
-	let word2 = word.toLowerCase();
-	word2 = word2.replace(/[^A-Za-z]$/, '');
-	
-	for (let name in names) {
-		if (word2 === name && word[0].toUpperCase() === word[0]) {
-			return names[name];
+	function getAbstractLines(lines, line_i) {
+		let abstractLines = [];
+		let start_i = line_i;
+		for (; line_i < lines.length; line_i++) {
+			let line = lines[line_i];
+			
+			if (/^(Keyword|KEYWORD|Key Word|Indexing Terms)/.test(line.text)) break;
+			
+			abstractLines.push(lines[line_i]);
+			
+			let prevDiff = Math.abs(lines[line_i - 2].xMax - lines[line_i - 1].xMax);
+			let curDiff = lines[line_i - 1].xMax - lines[line_i].xMax;
+			
+			if (/[\)\.]/.test(lines[line_i].text.slice(-1)) &&
+				line_i - start_i >= 2 &&
+				prevDiff < 1.0 &&
+				curDiff > 2.0
+			) {
+				break;
+			}
+			
+			if (line_i + 1 === lines.length) break;
+			
+			if (line_i >= 1 && line_i - start_i >= 1) {
+				let prevGap = lines[line_i].yMin - lines[line_i - 1].yMax;
+				let nextGap = lines[line_i + 1].yMin - lines[line_i].yMax;
+				if (nextGap - prevGap > 5.0) {
+					break;
+				}
+			}
 		}
+		return abstractLines;
 	}
 	
-	return 0;
+	function joinAbstractLines(lines) {
+		let text = '';
+		for (let i = 0; i < lines.length; i++) {
+			let line = lines[i];
+			if (i > 0) {
+				if (/[-\u2010]/.test(text.slice(-1))) {
+					text = text.slice(0, -1);
+				}
+				else if (!XRegExp('[\\p{Dash_Punctuation}]').test(text.slice(-1))) {
+					text += ' ';
+				}
+			}
+			text += line.text;
+		}
+		return text;
+	}
+	
+	function indexOfFirstAlphaNum(text) {
+		for (let i = 0; i < text.length; i++) {
+			let c = text[i];
+			if (XRegExp('[\\p{Letter}0-9]').test(c)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	
+	function getTitle(line) {
+		let titles = ['abstract', 'summary'];
+		let text = line.text.toLowerCase();
+		for (let i = 0; i < titles.length; i++) {
+			if (text.indexOf(titles[i]) === 0) {
+				return text.slice(0, titles[i].length);
+			}
+		}
+		return null;
+	}
+	
+	function pageToLines(page) {
+		let lines = [];
+		for (let flow of page.flows) {
+			for (let block of flow.blocks) {
+				for (let line of block.lines) {
+					lines.push(line);
+				}
+			}
+		}
+		return lines;
+	}
+	
+	let lines = pageToLines(page);
+	
+	for (let line_i = 1; line_i < lines.length; line_i++) {
+		let line = lines[line_i];
+		
+		if (line_i === lines.length - 1) break;
+		
+		// let word_x_max = line.words[0].xMax;
+		// let next_line_x_max = lines[line_i + 1].xMax;
+		// let next_line_x_min = lines[line_i + 1].xMin;
+		//if (Math.abs(line.words[0].yMin-lines[line_i + 1].yMin)>2.0 &&( word_x_max > next_line_x_max || word_x_max < next_line_x_min)) continue;
+		
+		let title = getTitle(line);
+		if (title) {
+			let abstractLines = getAbstractLines(lines, line_i);
+			let text = joinAbstractLines(abstractLines);
+			text = text.slice(title.length);
+			let j = indexOfFirstAlphaNum(text);
+			text = text.slice(j);
+			if (text[0] !== text[0].toUpperCase()) break;
+			if(text.slice(-1)!=='.') break;
+			return text;
+		}
+	}
+	return null;
 };
 
 Abstract.prototype.extractStructured = function (page) {
-	let abstract = '';
 	
-	let start = 0;
-	let abstract_len = 0;
-	let exit = 0;
-	let error = 0;
-	
-	let names_detected = 0;
-	
-	let x_min = 0;
-	let font_size = 0;
-	
-	let last_name_type = 0;
-	
-	for (let flow_i = 0; flow_i < page.flows.length; flow_i++) {
-		let flow = page.flows[flow_i];
+	function getTitle(text) {
+		let names = {
+			"background": 1,
+			"methods": 2,
+			"method": 2,
+			"conclusions": 3,
+			"conclusion": 3,
+			"objectives": 4,
+			"objective": 4,
+			"results": 5,
+			"result": 5,
+			"purpose": 6,
+			"measurements": 7,
+			"comparison": 8,
+			'introduction': 9
+		};
 		
-		for (let block_i = 0; block_i < flow.blocks.length; block_i++) {
-			let block = flow.blocks[block_i];
-			
-			for (let line_i = 0; line_i < block.lines.length; line_i++) {
-				let line = block.lines[line_i];
-				
-				if (/^(Keyword|KEYWORD|Key Word|Indexing Terms)/.test(line.text)) {
-					return abstract.trim();
-				}
-				
-				let type = this.is_structured_abstract_name(line.words[0].text);
-				if (type) {
-					last_name_type = type;
-					names_detected++;
-					start = 1;
-					exit = 0;
-					if (abstract.length) abstract += '\n';
-					
-					if (x_min) {
-						if (Math.abs(x_min - line.words[0].xMin) > 2) {
-							return null;
-						}
-					}
-					else {
-						x_min = line.words[0].xMin;
-					}
-					
-					if (font_size) {
-						if (Math.abs(font_size - line.words[0].fontsize) > 1) {
-							return null;
-						}
-					}
-					else {
-						font_size = line.words[0].fontsize;
-					}
-				}
-				
-				if (start) {
-					if (exit) {
-						//console.log("\n\n\n", abstract);
-						return null;
-					}
-				}
-				
-				if (start) {
-					abstract += line.text + ' ';
-				}
+		let text2 = text.toLowerCase();
+		
+		for (let name in names) {
+			if (text2.indexOf(name) === 0 && text[0].toUpperCase() === text[0]) {
+				return names[name];
 			}
-			
 		}
+		return 0;
+	}
+	
+	function getSections(lines, line_i) {
+		let sectionLines = [];
 		
-		if (start) {
-			if (names_detected >= 2 && last_name_type === 3) {
-				//console.log("\n\n\n", abstract);
-				return abstract.trim();
-			}
-			else {
-				return null;
+		let anchorWord = lines[line_i].words[0];
+		
+		let foundTypes = [];
+		
+		for (; line_i < lines.length; line_i++) {
+			let line = lines[line_i];
+			
+			if (
+				Math.abs(anchorWord.xMin - line.words[0].xMin) > 2.0 ||
+				Math.abs(anchorWord.fontsize - line.words[0].fontsize) > 1.0 ||
+				anchorWord.font !== line.words[0].font
+			) continue;
+			
+			let type = getTitle(line.text);
+			
+			if (foundTypes.includes(type)) continue;
+			
+			if (type) {
+				foundTypes.push(type);
+				sectionLines.push(line_i);
 			}
 		}
 		
+		if (foundTypes.length < 3 || foundTypes[foundTypes.length - 1] !== 3) return null;
+		return sectionLines;
+	}
+	
+	function getLastSectionBreak(lines, line_i) {
+		let start_i = line_i;
+		line_i++;
+		for (; line_i < lines.length; line_i++) {
+			let line = lines[line_i];
+			
+			if (lines[line_i].xMin - lines[line_i - 1].xMax > lines[line_i - 1].words[0].fontsize * 2) break;
+			
+			if (/^(Keyword|KEYWORD|Key Word|Indexing Terms)/.test(lines[line_i].text)) break;
+			
+			if(line_i-start_i>=3) {
+				let prevGap = lines[line_i-1].yMin - lines[line_i - 2].yMax;
+				let curGap = lines[line_i].yMin - lines[line_i-1].yMax;
+				if (curGap - prevGap > 5.0) {
+					break;
+				}
+				
+				let prevDiff = Math.abs(lines[line_i - 3].xMax - lines[line_i - 2].xMax);
+				let curDiff = lines[line_i - 2].xMax - lines[line_i-1].xMax;
+				
+				if (/[\)\.]/.test(lines[line_i-1].text.slice(-1)) &&
+					prevDiff < 1.0 &&
+					curDiff > 2.0
+				) {
+					break;
+				}
+			}
+		}
+		return line_i - 1;
+	}
+	
+	function sectionsToText(sections) {
+		let text = '';
+		
+		for (let i = 0; i < sections.length; i++) {
+			let section = sections[i];
+			
+			if (i > 0) text += '\n';
+			
+			for (let j = 0; j < section.lines.length; j++) {
+				let line = section.lines[j];
+				if (j > 0) {
+					if (/[-\u2010]/.test(text.slice(-1))) {
+						text = text.slice(0, -1);
+					}
+					else if (!XRegExp('[\\p{Dash_Punctuation}]').test(text.slice(-1))) {
+						text += ' ';
+					}
+				}
+				text += line.text;
+			}
+		}
+		return text;
+	}
+	
+	function pageToLines(page) {
+		let lines = [];
+		for (let flow of page.flows) {
+			for (let block of flow.blocks) {
+				for (let line of block.lines) {
+					lines.push(line);
+				}
+			}
+		}
+		return lines;
+	}
+	
+	let lines = pageToLines(page);
+	
+	for (let line_i = 0; line_i < lines.length; line_i++) {
+		let line = lines[line_i];
+		let lns = getSections(lines, line_i);
+		if (lns && lns.length) {
+			let sections = [];
+			for (let i = 0; i < lns.length; i++) {
+				
+				if (i + 1 < lns.length) {
+					sections.push({
+						lines: lines.slice(lns[i], lns[i + 1])
+					});
+				}
+				else {
+					let j = getLastSectionBreak(lines, lns[i]);
+					sections.push({
+						lines: lines.slice(lns[i], j+1)
+					});
+				}
+			}
+			return sectionsToText(sections);
+		}
 	}
 	
 	return null;
