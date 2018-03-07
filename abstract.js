@@ -170,18 +170,19 @@ Abstract.prototype.extractStructured = function (page) {
 	
 	function getTitle(text) {
 		let names = {
-			"background": 1,
-			"methods": 2,
-			"method": 2,
-			"conclusions": 3,
-			"conclusion": 3,
-			"objectives": 4,
-			"objective": 4,
-			"results": 5,
-			"result": 5,
-			"purpose": 6,
-			"measurements": 7,
-			"comparison": 8,
+			'background': 1,
+			'methodology': 2,
+			'methods': 2,
+			'method': 2,
+			'conclusions': 3,
+			'conclusion': 3,
+			'objectives': 4,
+			'objective': 4,
+			'results': 5,
+			'result': 5,
+			'purpose': 6,
+			'measurements': 7,
+			'comparison': 8,
 			'introduction': 9
 		};
 		
@@ -233,11 +234,11 @@ Abstract.prototype.extractStructured = function (page) {
 			
 			if (lines[line_i].xMin - lines[line_i - 1].xMax > lines[line_i - 1].words[0].fontsize * 2) break;
 			
-			if (/^(Keyword|KEYWORD|Key Word|Indexing Terms)/.test(lines[line_i].text)) break;
+			if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(lines[line_i].text)) break;
 			
-			if(line_i-start_i>=3) {
-				let prevGap = lines[line_i-1].yMin - lines[line_i - 2].yMax;
-				let curGap = lines[line_i].yMin - lines[line_i-1].yMax;
+			if (line_i - start_i >= 2) {
+				let prevGap = lines[line_i - 1].yMin - lines[line_i - 2].yMax;
+				let curGap = lines[line_i].yMin - lines[line_i - 1].yMax;
 				if (curGap - prevGap > 5.0) {
 					break;
 				}
