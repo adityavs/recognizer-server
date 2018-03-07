@@ -63,15 +63,17 @@ Abstract.prototype.extractSimple = function (page) {
 			
 			abstractLines.push(lines[line_i]);
 			
-			let prevDiff = Math.abs(lines[line_i - 2].xMax - lines[line_i - 1].xMax);
-			let curDiff = lines[line_i - 1].xMax - lines[line_i].xMax;
-			
-			if (/[\)\.]/.test(lines[line_i].text.slice(-1)) &&
-				line_i - start_i >= 2 &&
-				prevDiff < 1.0 &&
-				curDiff > 2.0
-			) {
-				break;
+			if (line_i >= 2) {
+				let prevDiff = Math.abs(lines[line_i - 2].xMax - lines[line_i - 1].xMax);
+				let curDiff = lines[line_i - 1].xMax - lines[line_i].xMax;
+				
+				if (/[\)\.]/.test(lines[line_i].text.slice(-1)) &&
+					line_i - start_i >= 2 &&
+					prevDiff < 1.0 &&
+					curDiff > 2.0
+				) {
+					break;
+				}
 			}
 			
 			if (line_i + 1 === lines.length) break;
