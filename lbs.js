@@ -76,6 +76,8 @@ Lbs.prototype.addLine = function (lbs, line, line2) {
 		
 		let lfe = this.lineFontsEqual(line, tb.lines[tb.lines.length - 1]);
 		
+		let hasEqualFontWords = this.hasEqualFontWords(line, tb.lines[tb.lines.length - 1]);
+		
 		let maxLineGap;
 		
 		if (tb.maxFontSize <= 12.0 && !tb.upper) {
@@ -91,21 +93,21 @@ Lbs.prototype.addLine = function (lbs, line, line2) {
 			if (!(tb.upper === upper || (line.yMin - tb.yMax < tb.maxFontSize &&
 					that.allowUpperNonupper(line, tb.lines[tb.lines.length - 1])))) return 0;
 			
-			if (!((lfe === 0 && (lineDominatingFont === tb.dominatingFont ||
+			if (!((lfe === 0 && (lineDominatingFont === tb.dominatingFont || hasEqualFontWords ||
 					(tb.maxFontSize === maxFontSize && line.yMin - tb.yMax < tb.maxFontSize * 1))) ||
 					lfe === 1)) return 0;
 			
 			
 			if (!(line.words[0].bold === tb.bold)) return 0;
 			
-			if (!(Math.abs(tb.maxFontSize - maxFontSize) <= 1.0)) return 0;
+			if (!(Math.abs(tb.maxFontSize - maxFontSize) <= 1.0) && !hasEqualFontWords) return 0;
 			
 			if (!(line.yMin - tb.yMax < maxLineGap)) return 0;
 			
-			if (!((line.xMin >= tb.xMin || Math.abs(line.xMin - tb.xMin) < 2.0) &&
-					(line.xMax <= tb.xMax || Math.abs(line.xMax - tb.xMax) < 2.0) ||
-					(line.xMin <= tb.xMin || Math.abs(line.xMin - tb.xMin) < 2.0) &&
-					(line.xMax >= tb.xMax || Math.abs(line.xMax - tb.xMax) < 2.0))) return 0;
+			if (!((line.xMin >= tb.xMin || Math.abs(line.xMin - tb.xMin) < 20.0) &&
+					(line.xMax <= tb.xMax || Math.abs(line.xMax - tb.xMax) < 20.0) ||
+					(line.xMin <= tb.xMin || Math.abs(line.xMin - tb.xMin) < 20.0) &&
+					(line.xMax >= tb.xMax || Math.abs(line.xMax - tb.xMax) < 20.0))) return 0;
 			
 			
 			tb.lines.push(line);
@@ -137,6 +139,19 @@ Lbs.prototype.addLine = function (lbs, line, line2) {
 	};
 	
 	lbs.push(lb);
+};
+
+Lbs.prototype.hasEqualFontWords = function(line1, line2) {
+	for (let word1 of line1.words) {
+		if(word1.text.length<2) continue;
+		for (let word2 of line2.words) {
+			if(word2.text.length<2) continue;
+			if (word1.font === word2.font && word1.fontsize === word2.fontsize) {
+				return true
+			}
+		}
+	}
+	return false;
 };
 
 Lbs.prototype.allowUpperNonupper = function (line1, line2) {
@@ -235,6 +250,9 @@ Lbs.prototype.getLineDominatingFontsize = function (line) {
 };
 
 Lbs.prototype.isLineUpper = function (line) {
+	
+	// Todo: Make upper case line detection more correct
+	if (line.text.length <= 5) return false;
 	
 	let total = 0;
 	let upper = 0;
