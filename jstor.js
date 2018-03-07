@@ -64,7 +64,13 @@ Jstor.prototype.extract = function (page) {
 	
 	if (m = /Stable URL: (http:\/\/www\.jstor\.org\/stable\/(\S+))/.exec(text)) {
 		result.url = m[1];
-		result.doi = '10.2307/' + m[2];
+		// Some JSTOR stable urls can contain whole DOI. I.e. http://www.jstor.org/stable/10.1525/jung.1.1992.11.1.25
+		if (/10\.[0-9]+\//.test(m[2])) {
+			result.doi = m[2];
+		}
+		else {
+			result.doi = '10.2307/' + m[2];
+		}
 	}
 	else {
 		return 0;
