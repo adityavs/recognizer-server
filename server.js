@@ -98,7 +98,7 @@ router.post('/recognize', async function (ctx) {
 
 router.post('/report', async function (ctx) {
 	let res = await s3Client.upload({
-		Key: 'report_' + (new Date().toISOString()) + '_' + ctx.ip + '.json',
+		Key: 'reports/' + (new Date().toISOString()) + '_' + ctx.ip + '.json',
 		Body: JSON.stringify(ctx.request.body),
 	}).promise();
 	ctx.body = {};
