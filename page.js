@@ -23,6 +23,8 @@
  ***** END LICENSE BLOCK *****
  */
 
+const log = require('./log');
+
 const Page = function () {
 	
 };
@@ -46,23 +48,23 @@ Page.prototype.getInfo = function (doc) {
 	let first = 1;
 	let last = doc.totalPages;
 	
-	res = this.extractPages(doc);
-	
-	if (res) {
-		let start = res.start;
-		first = res.first;
-		if (first === 1) {
-			firstPage = start;
-		}
-		else if (first === 2 && start >= 1) {
-			firstPage = start - 1;
-			first = 1;
-		}
-		
-		last = first + doc.totalPages - firstPage - 1;
-		
-		log.debug("pages:", doc.totalPages, start, first, last);
-	}
+	// res = this.extractPages(doc);
+	//
+	// if (res) {
+	// 	let start = res.start;
+	// 	first = res.first;
+	// 	if (first === 1) {
+	// 		firstPage = start;
+	// 	}
+	// 	else if (first === 2 && start >= 1) {
+	// 		firstPage = start - 1;
+	// 		first = 1;
+	// 	}
+	//
+	// 	last = first + doc.totalPages - firstPage - 1;
+	//
+	// 	log.debug("pages:", doc.totalPages, start, first, last);
+	// }
 	
 	let pages;
 	
@@ -189,7 +191,7 @@ Page.prototype.extractPages = function (doc) {
 									let block2 = flow2.blocks[block2_i];
 									
 									for (let line2_i = 0; line2_i < block2.lines.length; line2_i++) {
-										let line2 = block2.lines + line2_i;
+										let line2 = block2.lines[line2_i];
 										if (line2.yMax < 100 || line2.yMin > page2.height - 100) {
 											
 											for (let word2_i = 0; word2_i < line2.words.length; word2_i++) {
@@ -234,7 +236,7 @@ Page.prototype.extractPages = function (doc) {
 													let nr1 = parseInt(w1);
 													let nr2 = parseInt(w2);
 //                        log_debug("found numbers: %d %d\n", nr1, nr2);
-													if (nr1 > 0 && nr2 === nr1 + 1) {
+													if (nr1 > 0 && nr2 === nr1 + 2) {
 														//console.log("found numbers:", nr1, nr2);
 														start = page_i;
 														first = nr1;
