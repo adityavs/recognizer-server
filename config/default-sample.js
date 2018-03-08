@@ -5,5 +5,12 @@ module.exports = {
 	logFile: '',
 	port: 8003,
 	// Client connection inactivity timeout in seconds
-	connectionTimeout: 3
+	connectionTimeout: 3,
+	s3: {
+		params: {
+			Bucket: ''
+		},
+		accessKeyId: '',
+		secretAccessKey: ''
+	}
 };

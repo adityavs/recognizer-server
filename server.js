@@ -25,6 +25,7 @@
 
 const fs = require('fs');
 const crypto = require('crypto');
+const AWS = require('aws-sdk');
 const Koa = require('koa');
 const Router = require('koa-router');
 const compress = require('koa-compress');
@@ -33,6 +34,7 @@ const bodyParser = require('koa-bodyparser');
 const log = require('./log');
 const Recognizer = require('./recognizer');
 
+const s3Client = new AWS.S3(config.get('s3'));
 const recognizer = new Recognizer();
 
 
@@ -92,6 +94,14 @@ router.post('/recognize', async function (ctx) {
 	log.debug('request processed in %dms', Date.now()-t);
 	ctx.body = res;
 	log.debug(res);
+});
+
+router.post('/report', async function (ctx) {
+	let res = await s3Client.upload({
+		Key: 'report_' + (new Date().toISOString()) + '_' + ctx.ip + '.json',
+		Body: JSON.stringify(ctx.request.body),
+	}).promise();
+	ctx.body = {};
 });
 
 router.get('/stats', async function (ctx) {
