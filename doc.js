@@ -47,7 +47,7 @@ Doc.prototype.getDoc = function (json) {
 			height: p[1],
 			fDist: {},
 			fsDist: {},
-			contextLeft: 9999999,
+			contentLeft: 9999999,
 			contentRight: 0,
 			text: '',
 			flows: []
