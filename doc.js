@@ -84,6 +84,8 @@ Doc.prototype.getDoc = function (json) {
 						};
 						line.words.push(word);
 						
+						word.text = this.clean(word.text);
+						
 						doc.text += word.text + (word.space ? ' ' : '');
 						page.text += word.text + (word.space ? ' ' : '');
 						block.text += word.text + (word.space ? ' ' : '');
@@ -120,4 +122,8 @@ Doc.prototype.getDoc = function (json) {
 	}
 	
 	return doc;
+};
+
+Doc.prototype.clean = function (text) {
+	return text.replace(/\u200B/g, '');
 };
