@@ -344,9 +344,7 @@ Authors.prototype.extractAuthors = async function (lbs, i) {
 	
 	if (i + 1 < lbs.length) {
 		alb = lbs[i + 1];
-		if (tlb.yMax < alb.yMin) {
-			a1 = await this.getAuthors(alb);
-		}
+		a1 = await this.getAuthors(alb);
 	}
 	
 	if (i + 2 < lbs.length) {
