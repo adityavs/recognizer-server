@@ -102,8 +102,24 @@ Extract.prototype.issue = function (text) {
 	return null;
 };
 
+Extract.prototype.cleanInvalidParentheses = function (text) {
+	let text2 = '';
+	let depth = 0;
+	for (let c of text) {
+		if ([']', ')'].includes(c)) {
+			depth--;
+			if (depth < 0) break;
+		}
+		if (['[', '('].includes(c)) {
+			depth++;
+		}
+		text2 += c;
+	}
+	return text2;
+};
+
 Extract.prototype.doi = async function (text) {
-	let m = text.match(/10.\d{4,9}\/[-._;()\[\]\+<>\/:A-Za-z0-9]+/g);
+	let m = text.match(/10.\d{4,9}\/[^\s]*[^\s\.,]/g);
 	
 	if (!m) return 0;
 	
@@ -111,6 +127,7 @@ Extract.prototype.doi = async function (text) {
 	let doi2 = '';
 	
 	for (let doi of m) {
+		doi = this.cleanInvalidParentheses(doi);
 		
 		let cs = [];
 		for (let c of doi) {
@@ -132,13 +149,13 @@ Extract.prototype.doi = async function (text) {
 				}
 				doi2 = doi2.slice(0, doi2.length - 1);
 			}
-			while (doi2.length > 10);
+			while (doi2.length > 13);
 			
 			if (ret) break;
 		}
 	}
 	
-	if (doi2.length > 10) {
+	if (doi2.length > 13) {
 		return doi2;
 	}
 	else {

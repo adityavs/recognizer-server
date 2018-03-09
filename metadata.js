@@ -47,6 +47,13 @@ Metadata.prototype.extract = async function (doc) {
 				result.doi = doi;
 			}
 		}
+		
+		if (key.toLowerCase() === 'doi') {
+			let doi = doc.metadata[key];
+			if (/10.\d{4,9}\/[^\s]*[^\s\.,]/.test(doi)) {
+				result.doi = doi;
+			}
+		}
 	}
 	return result;
 };
