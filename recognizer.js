@@ -101,26 +101,61 @@ Recognizer.prototype.recognize = async function (json) {
 	let pageInfo = this.page.getInfo(doc);
 	result.pages = pageInfo.pages;
 	
-	res = await this.title.getTitleAuthor(doc.pages[pageInfo.firstPage]);
+	let breakLine = null;
+	res = this.abstract.extract(doc);
 	if (res) {
-		result.title = res.title;
-		result.authors = res.authors;
+		result.abstract = res.text;
+		breakLine = {
+			pageIndex: res.pageIndex,
+			pageY: res.pageY
+		};
 	}
-	else if (pageInfo.firstPage === 0 && doc.pages.length >= 2) {
-		res = await this.title.getTitleAuthor(doc.pages[1]);
+	
+	
+	let bl = this.page.getTitleBreakLine(doc);
+	if (bl) {
+		if (!breakLine) {
+			breakLine = bl;
+		}
+		else if (
+			breakLine.pageIndex > bl.pageIndex ||
+			breakLine.pageIndex === bl.pageIndex && breakLine.pageY > bl.pageY
+		) {
+			breakLine = bl;
+		}
+	}
+	
+	
+	res = null;
+	
+	let pageIndex = pageInfo.firstPage;
+	if (!breakLine || pageIndex <= breakLine.pageIndex) {
+		let y = null;
+		if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
+		res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
 		if (res) {
 			result.title = res.title;
 			result.authors = res.authors;
 		}
 	}
 	
-	if (!result.doi) {
-		let doi = await this.title.getDoi(doc);
-		if (doi) result.doi = doi;
+	if (!res && pageInfo.firstPage === 0 && doc.pages.length >= 2) {
+		pageIndex = 1;
+		if (!breakLine || pageIndex <= breakLine.pageIndex) {
+			let y = null;
+			if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
+			res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
+			if (res) {
+				result.title = res.title;
+				result.authors = res.authors;
+			}
+		}
 	}
 	
-	res = this.abstract.extract(doc);
-	if (res) result.abstract = res;
+	if (!result.doi) {
+		let doi = await this.title.getDoi(doc, breakLine);
+		if (doi) result.doi = doi;
+	}
 	
 	return result;
 };

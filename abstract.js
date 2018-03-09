@@ -6,17 +6,26 @@ const Abstract = function () {
 module.exports = Abstract;
 
 Abstract.prototype.extract = function (doc) {
-	for (let page of doc.pages) {
-		let res;
+	let res;
+	let i = 0;
+	for (; i < doc.pages.length; i++) {
+		let page = doc.pages[i];
 		res = this.extractStructured(page);
-		if (res) return res;
-		
+		if (res) break;
 		res = this.extractSimple(page);
-		if (res) return res;
-		
+		if (res) break;
 		res = this.extractBeforeKeywords(page);
-		if (res) return res;
+		if (res) break;
 	}
+	
+	if (res) {
+		return {
+			pageIndex: i,
+			pageY: res.yMin,
+			text: res.text
+		};
+	}
+	
 	return null;
 };
 
@@ -44,7 +53,7 @@ Abstract.prototype.extractBeforeKeywords = function (page) {
 				abstract[abstract.length - 1] === '.' &&
 				abstract.length > 200 && abstract.length < 3000
 			) {
-				return abstract;
+				return {yMin: lbPrev.lines[0].yMin, text: abstract};
 			}
 		}
 	}
@@ -160,7 +169,7 @@ Abstract.prototype.extractSimple = function (page) {
 			text = text.slice(j);
 			if (text[0] !== text[0].toUpperCase()) break;
 			if(text.slice(-1)!=='.') break;
-			return text;
+			return {yMin: line.yMin, text};
 		}
 	}
 	return null;
@@ -314,7 +323,7 @@ Abstract.prototype.extractStructured = function (page) {
 					});
 				}
 			}
-			return sectionsToText(sections);
+			return {yMin: line.yMin, text: sectionsToText(sections)};
 		}
 	}
 	

@@ -76,7 +76,7 @@ Title.prototype.cleanTitle = function (title) {
 	return title.replace(/[*1]$/, '');
 };
 
-Title.prototype.getTitleAuthor = async function (page) {
+Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 	let lbs = page.lbs;
 	let font_size_threshold = this.get_average_font_size_threshold(page);
 	let lbsSorted = lbs.slice();
@@ -88,9 +88,8 @@ Title.prototype.getTitleAuthor = async function (page) {
 	
 	for (let i = 0; i < lbsSorted.length; i++) {
 		let tlb = lbsSorted[i];
-
-//    print_block(tlb);
-//    printf("\n\n");
+		
+		if (breakPageY !== null && tlb.yMin >= breakPageY) continue;
 		
 		if (tlb.maxFontSize < font_size_threshold) continue;
 		
@@ -112,6 +111,8 @@ Title.prototype.getTitleAuthor = async function (page) {
 	
 	for (let i = 0; i < lbs.length; i++) {
 		let tlb = lbs[i];
+		
+		if (breakPageY !== null && tlb.yMin >= breakPageY) continue;
 		
 		if (!tlb.upper) continue;
 		
@@ -153,17 +154,23 @@ Title.prototype.lineBlockToText = function (lb, m) {
 	return text;
 };
 
-Title.prototype.getDoi = async function (doc) {
+Title.prototype.getDoi = async function (doc, breakLine) {
 	let count = 0;
 	
 	let normText = utils.normalize(doc.text);
 	
 	let pages = doc.pages;
-	for (let page of pages) {
+	for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+		let page = pages[pageIndex];
 		let lbs = page.lbs;
+		
+		if (breakLine && pageIndex > breakLine.pageIndex) break;
 		
 		for (let i = 0; i < lbs.length; i++) {
 			let gb = lbs[i];
+			
+			if (breakLine && pageIndex === breakLine.pageIndex && gb.yMin >= breakLine.pageY) continue;
+			
 			let title = this.lineBlockToText(gb, 0);
 			// console.log('tttt1', title);
 			if (count > 100) break;

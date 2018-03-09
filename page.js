@@ -313,3 +313,25 @@ Page.prototype.extract_header_footer = function (doc) {
 	}
 	return text;
 };
+
+Page.prototype.getTitleBreakLine = function (doc) {
+	for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
+		let page = doc.pages[pageIndex];
+		for (let flow of page.flows) {
+			for (let block of flow.blocks) {
+				for (let line of block.lines) {
+					if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(line.text)) {
+						return {pageIndex, pageY: line.yMin};
+					}
+					
+					let text = line.text;
+					text = text.replace(/[^A-Za-z]/g, '');
+					if (text.length === 12 && text.toLowerCase().indexOf('introduction') === 0 && text[0] === text[0].toUpperCase()) {
+						return {pageIndex, pageY: line.yMin}
+					}
+				}
+			}
+		}
+	}
+	return null;
+};
