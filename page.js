@@ -326,7 +326,7 @@ Page.prototype.getTitleBreakLine = function (doc) {
 					
 					let text = line.text;
 					text = text.replace(/[^A-Za-z]/g, '');
-					if (['introduction', 'contents'].includes(text.toLowerCase()) === 0 && text[0] === text[0].toUpperCase()) {
+					if (['introduction', 'contents'].includes(text.toLowerCase()) && text[0] === text[0].toUpperCase()) {
 						return {pageIndex, pageY: line.yMin}
 					}
 				}
