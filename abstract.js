@@ -167,6 +167,7 @@ Abstract.prototype.extractSimple = function (page) {
 			text = text.slice(title.length);
 			let j = indexOfFirstAlphaNum(text);
 			text = text.slice(j);
+			if (!text.length) break;
 			if (text[0] !== text[0].toUpperCase()) break;
 			if(text.slice(-1)!=='.') break;
 			return {yMin: line.yMin, text};
