@@ -28,7 +28,7 @@ const XRegExp = require('xregexp');
 const utils = require('./utils');
 const Authors = require('./authors');
 
-let areg1 = XRegExp('[\\p{Letter}\\p{Dash_Punctuation}]');
+let areg1 = XRegExp('[\\p{Letter}]');
 
 const Title = function (options) {
 	this.db = options.db;
