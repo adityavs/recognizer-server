@@ -277,6 +277,17 @@ Authors.prototype.getAuthors = async function (lb) {
 	};
 };
 
+Authors.prototype.hasExistingAuthor = function (authors1, authors2) {
+	for (let author1 of authors1) {
+		for (let author2 of authors2) {
+			if (author1.firstName === author2.firstName && author1.lastName === author2.lastName) {
+				return true;
+			}
+		}
+	}
+	return false;
+};
+
 Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 	
 	let a1 = [];
@@ -293,7 +304,9 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 //      printf("\n\n");
 			let a = await this.getAuthors(lb);
 			if (a) {
-				a1 = a1.concat(a.authors);
+				if (!this.hasExistingAuthor(a1, a.authors)) {
+					a1 = a1.concat(a.authors);
+				}
 			}
 			else {
 				break;
@@ -311,7 +324,9 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 //      printf("\n\n");
 			let a = await this.getAuthors(lb);
 			if (a && a.conf === 2) {
-				a2 = a2.concat(a.authors);
+				if (!this.hasExistingAuthor(a2, a.authors)) {
+					a2 = a2.concat(a.authors);
+				}
 			}
 			else {
 				break;
