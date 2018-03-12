@@ -120,11 +120,7 @@ Extract.prototype.cleanInvalidParentheses = function (text) {
 
 Extract.prototype.doi = async function (text) {
 	let m = text.match(/10.\d{4,9}\/[^\s]*[^\s\.,]/g);
-	
-	if (!m) return 0;
-	
-	let doi1 = '';
-	let doi2 = '';
+	if (!m) return null;
 	
 	for (let doi of m) {
 		doi = this.cleanInvalidParentheses(doi);
@@ -134,33 +130,11 @@ Extract.prototype.doi = async function (text) {
 			if (c >= 'A' && c <= 'Z') c = c.toLowerCase();
 			cs.push(c);
 		}
-		doi1 = cs.join('');
+		doi = cs.join('');
 		
-		doi2 = doi1;
-		
-		let ret = 0;
-		
-		if (doi2.length < 64) {
-			do {
-				
-				if (await this.db.doiExists(doi2)) {
-					ret = 1;
-					break;
-				}
-				doi2 = doi2.slice(0, doi2.length - 1);
-			}
-			while (doi2.length > 13);
-			
-			if (ret) break;
-		}
+		return doi;
 	}
-	
-	if (doi2.length > 13) {
-		return doi2;
-	}
-	else {
-		return doi1;
-	}
+	return null;
 };
 
 Extract.prototype.journal = async function (text) {
