@@ -72,6 +72,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 	let authors = [];
 	let names = [];
 	let name = '';
+	let font = null;
 	let fontsize = 0;
 	let baseline = 0;
 	
@@ -92,7 +93,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					return 1;
 				}
 				
-				if (fontsize > 1 && Math.abs(uchar.word.fontsize - fontsize) > 1.0 &&
+				if (font !== null && uchar.word.font !== font || fontsize > 1 && Math.abs(uchar.word.fontsize - fontsize) > 1.0 &&
 					Math.abs(uchar.word.baseline - baseline) > 1.0) {
 					ref = 1;
 					return 2;
@@ -102,6 +103,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					name += uchar.c;
 					
 					if (!names.length) {
+						font = uchar.word.font;
 						fontsize = uchar.word.fontsize;
 						baseline = uchar.word.baseline;
 					}
@@ -112,7 +114,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 				
 			}
 			else {
-				if (Math.abs(uchar.word.fontsize - fontsize) > 1.0 && Math.abs(uchar.word.baseline - baseline) > 1.0 ||
+				if (font !== null && uchar.word.font !== font || Math.abs(uchar.word.fontsize - fontsize) > 1.0 && Math.abs(uchar.word.baseline - baseline) > 1.0 ||
 					uchar.c === '*') {
 					ref = 1;
 					return 2;
@@ -128,7 +130,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					}
 					
 					if (that.isSkipWord(name)) {
-						names = [];
+						//names = [];
 						name = '';
 						return 2;
 					}
@@ -163,7 +165,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		
 		if (this.isSkipWord(name)) {
 			name = '';
-			names = [];
+			//names = [];
 		}
 		
 		if (name.length) {
@@ -183,6 +185,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		
 		name = '';
 		names = [];
+		font = null;
 	}
 	
 	return authors;
