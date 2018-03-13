@@ -118,7 +118,17 @@ Extract.prototype.cleanInvalidParentheses = function (text) {
 	return text2;
 };
 
-Extract.prototype.doi = async function (text) {
+Extract.prototype.doi = async function (doc) {
+	let text = '';
+	
+	if (doc.pages.length >= 1) {
+		text += doc.pages[0].text;
+	}
+	
+	if (doc.pages.length >= 2) {
+		text += '\n' + doc.pages[1].text;
+	}
+	
 	let m = text.match(/10.\d{4,9}\/[^\s]*[^\s\.,]/g);
 	if (!m) return null;
 	

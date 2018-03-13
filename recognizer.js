@@ -69,7 +69,7 @@ Recognizer.prototype.recognize = async function (json) {
 	result.authors = [];
 	
 	if (!result.doi) {
-		let doi = await this.extract.doi(doc.text);
+		let doi = await this.extract.doi(doc);
 		if (doi) result.doi = doi;
 	}
 	
