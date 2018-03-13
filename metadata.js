@@ -37,7 +37,7 @@ Metadata.prototype.extract = async function (doc) {
 		if (key.toLowerCase() === 'title') {
 			let normTitle = utils.normalize(doc.metadata[key]);
 			let normText = utils.normalize(doc.text);
-			if (normTitle >= 10 && normText.indexOf(normTitle) >= 0) {
+			if (normTitle.length >= 10 && normText.indexOf(normTitle) >= 0) {
 				result.title = key;
 			}
 			
