@@ -374,7 +374,7 @@ Authors.prototype.extractAuthors = async function (lbs, i) {
 			total_chars += lines.text.length;
 		}
 		
-		if (total_chars < 300 && slb.yMin - tlb.yMax < (alb.yMin - slb.yMax) * 2 &&
+		if (total_chars < 300 /*&& slb.yMin - tlb.yMax < (alb.yMin - slb.yMax) * 2*/ &&
 			tlb.maxFontSize >= slb.maxFontSize && tlb.maxFontSize >= alb.maxFontSize &&
 			tlb.yMax < slb.yMin && slb.yMax < alb.yMin) {
 			a2 = await this.getAuthors(alb);
