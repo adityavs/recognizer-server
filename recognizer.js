@@ -125,22 +125,16 @@ Recognizer.prototype.recognize = async function (json) {
 		}
 	}
 	
-	
-	res = null;
-	
-	let pageIndex = pageInfo.firstPage;
-	if (!breakLine || pageIndex <= breakLine.pageIndex) {
-		let y = null;
-		if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
-		res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
+	if (result.title) {
+		res = await this.title.getAuthorsByExistingTitle(doc, result.title);
 		if (res) {
-			result.title = res.title;
-			result.authors = res.authors;
+			result.authors = res;
 		}
 	}
-	
-	if (!res && pageInfo.firstPage === 0 && doc.pages.length >= 2) {
-		pageIndex = 1;
+	else {
+		res = null;
+		
+		let pageIndex = pageInfo.firstPage;
 		if (!breakLine || pageIndex <= breakLine.pageIndex) {
 			let y = null;
 			if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
@@ -148,6 +142,19 @@ Recognizer.prototype.recognize = async function (json) {
 			if (res) {
 				result.title = res.title;
 				result.authors = res.authors;
+			}
+		}
+		
+		if (!res && pageInfo.firstPage === 0 && doc.pages.length >= 2) {
+			pageIndex = 1;
+			if (!breakLine || pageIndex <= breakLine.pageIndex) {
+				let y = null;
+				if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
+				res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
+				if (res) {
+					result.title = res.title;
+					result.authors = res.authors;
+				}
 			}
 		}
 	}

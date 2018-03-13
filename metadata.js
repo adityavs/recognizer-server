@@ -33,17 +33,19 @@ module.exports = Metadata;
 
 Metadata.prototype.extract = async function (doc) {
 	let result = {};
+	let normText = utils.normalize(doc.text);
 	for (let key in doc.metadata) {
 		if (key.toLowerCase() === 'title') {
 			let normTitle = utils.normalize(doc.metadata[key]);
-			let normText = utils.normalize(doc.text);
-			if (normTitle.length >= 10 && normText.indexOf(normTitle) >= 0) {
-				result.title = key;
+			if (normTitle.length < 15) continue;
+			
+			if (normText.indexOf(normTitle) >= 0) {
+				result.title = doc.metadata[key].trim();
 			}
 			
 			let doi = await this.db.getDoiByTitle(normTitle, normText);
 			if (doi) {
-				result.title = doc.metadata[key];
+				result.title = doc.metadata[key].trim();
 				result.doi = doi;
 			}
 		}

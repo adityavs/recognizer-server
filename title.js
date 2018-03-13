@@ -134,6 +134,27 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 	return null;
 };
 
+Title.prototype.getAuthorsByExistingTitle = async function (doc, existingTitle) {
+	for (let page of doc.pages) {
+		let lbs = page.lbs;
+		
+		existingTitle = utils.normalize(existingTitle);
+		
+		for (let i = 0; i < lbs.length; i++) {
+			let tlb = lbs[i];
+			
+			let title = this.lineBlockToText(tlb, 0);
+			let titleNorm = utils.normalize(title);
+			if (titleNorm.indexOf(existingTitle) < 0) continue;
+			
+			let authors = await this.authors.extractAuthors(lbs, i);
+			if (authors.length) {
+				return authors;
+			}
+		}
+	}
+	return null;
+};
 
 Title.prototype.skipBlock = function (lbs, lbi) {
 	let curLb = lbs[lbi];
