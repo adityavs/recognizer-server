@@ -48,7 +48,7 @@ Metadata.prototype.extract = async function (doc) {
 			}
 		}
 		
-		if (['key', 'wps-articledoi'].includes(key.toLowerCase())) {
+		if (['doi', 'wps-articledoi'].includes(key.toLowerCase())) {
 			let doi = doc.metadata[key];
 			if (/10.\d{4,9}\/[^\s]*[^\s\.,]/.test(doi)) {
 				result.doi = doi;
