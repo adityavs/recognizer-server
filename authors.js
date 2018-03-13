@@ -232,7 +232,7 @@ Authors.prototype.getAuthors = async function (lb) {
 			let negative = 0;
 			let positive = 0;
 			for (let name of author.names) {
-				if (name.length <= 1) continue;
+				if (name.length < 3) continue;
 				
 				let type = await this.getWordType(name);
 				if (type < 0) {
