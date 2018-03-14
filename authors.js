@@ -218,6 +218,7 @@ Authors.prototype.getAuthors = async function (lb) {
 	let result = [];
 	
 	for (let line of lb.lines) {
+		if (line.text.toLowerCase() === 'by') continue;
 		
 		// console.log('uline', line.text);
 		let ustr = this.lineToUstr(line);

@@ -315,23 +315,71 @@ Page.prototype.extract_header_footer = function (doc) {
 };
 
 Page.prototype.getTitleBreakLine = function (doc) {
-	for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
-		let page = doc.pages[pageIndex];
-		for (let flow of page.flows) {
-			for (let block of flow.blocks) {
-				for (let line of block.lines) {
-					if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(line.text)) {
-						return {pageIndex, pageY: line.yMin};
-					}
-					
-					let text = line.text;
-					text = text.replace(/[^A-Za-z]/g, '');
-					if (['introduction', 'contents', 'tableofcontent'].includes(text.toLowerCase()) && text[0] === text[0].toUpperCase()) {
-						return {pageIndex, pageY: line.yMin}
+	let breakLine = null;
+	
+	(function () {
+		for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
+			let page = doc.pages[pageIndex];
+			
+			for (let lb of page.lbs) {
+				let line = lb.lines[0];
+				let text = line.text;
+				text = text.toLowerCase();
+				if (text === 'by' || text.indexOf('by ') === 0) {
+					breakLine = {
+						pageIndex: pageIndex,
+						pageY: line.yMin
+					};
+					return;
+				}
+			}
+		}
+	})();
+	
+	(function () {
+		for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
+			let page = doc.pages[pageIndex];
+			for (let flow of page.flows) {
+				for (let block of flow.blocks) {
+					for (let line of block.lines) {
+						if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(line.text)) {
+							if (!breakLine) {
+								breakLine = {
+									pageIndex: pageIndex,
+									pageY: line.yMin
+								};
+							}
+							else if (
+								breakLine.pageIndex > pageIndex ||
+								breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
+								breakLine.pageIndex = pageIndex;
+								breakLine.pageY = line.yMin;
+							}
+							return;
+						}
+						
+						let text = line.text;
+						text = text.replace(/[^A-Za-z]/g, '');
+						if (['introduction', 'contents', 'tableofcontent'].includes(text.toLowerCase()) && text[0] === text[0].toUpperCase()) {
+							if (!breakLine) {
+								breakLine = {
+									pageIndex: pageIndex,
+									pageY: line.yMin
+								};
+							}
+							else if (
+								breakLine.pageIndex > pageIndex ||
+								breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
+								breakLine.pageIndex = pageIndex;
+								breakLine.pageY = line.yMin;
+							}
+							return;
+						}
 					}
 				}
 			}
 		}
-	}
-	return null;
+	})();
+	
+	return breakLine;
 };
