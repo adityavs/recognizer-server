@@ -212,6 +212,125 @@ Authors.prototype.getWordType = async function (word) {
 	else return 0;
 };
 
+Authors.prototype.extractFromString = async function (str) {
+	let authors = [];
+	let names = [];
+	let name = '';
+	
+	let that = this;
+	
+	for (let i = 0; i < str.length; i++) {
+		
+		let c = str[i];
+		
+		function fn1() {
+			
+			if (!name.length) {
+				if ([' ', '.'].includes(c)) { // Skip all spaces before name
+					return 1;
+				}
+				
+				if (reg1.test(c) && !/[Ææ]/.test(c)) {
+					name += c;
+				}
+				else { // If symbol is not a letter
+					return 2;
+				}
+				
+			}
+			else {
+				if (reg2.test(c) && !/[Ææ]/.test(c)) {
+					name += c;
+				}
+				else if ([' ', '.'].includes(c)) { // if names separator
+					
+					if (that.isConjunction(name)) {
+						name = '';
+						return 2;
+					}
+					
+					if (that.isSkipWord(name)) {
+						//names = [];
+						name = '';
+						return 2;
+					}
+					
+					if (name[0].toUpperCase() !== name[0]) { // if name doesn't start with upper case letter. todo: what about chinese?
+						name = '';
+						return 2;
+					}
+					
+					names.push(name.slice());
+					name = '';
+					
+					if (names.length >= 4) {
+						return 2;
+					}
+				}
+				else {
+					return 2;
+				}
+			}
+		}
+		
+		let r = fn1();
+		
+		if (r === 1) continue;
+		if (r !== 2 && i < str.length - 1) continue;
+		
+		
+		if (this.isConjunction(name)) {
+			name = '';
+		}
+		
+		if (this.isSkipWord(name)) {
+			name = '';
+			//names = [];
+		}
+		
+		if (name.length) {
+			names.push(name.slice());
+			name = '';
+		}
+		
+		if (names.length >= 2 && names.length <= 4) {
+			if (names[names.length - 1].length < 2) return 0;
+			authors.push({names: names.slice()});
+		}
+		else if (names.length !== 0) {
+			//return 0;
+			break;
+		}
+		
+		name = '';
+		names = [];
+	}
+	
+	let result = [];
+	let found = false;
+	for (let author of authors) {
+		for (let name of author.names) {
+			if (name.length >= 3) {
+				let type = await this.getWordType(name);
+				if (type > 0) {
+					found = true;
+					break;
+				}
+			}
+		}
+		
+		let firstName;
+		let lastName;
+		lastName = author.names.pop();
+		firstName = author.names.join(' ');
+		
+		result.push({firstName, lastName});
+	}
+	
+	if (found) return result;
+	return [];
+};
+
 Authors.prototype.getAuthors = async function (lb) {
 	let confidence = 0;
 	

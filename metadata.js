@@ -27,6 +27,7 @@ const utils = require('./utils');
 
 const Metadata = function (options) {
 	this.db = options.db;
+	this.authors = options.authors;
 };
 
 module.exports = Metadata;
@@ -54,6 +55,14 @@ Metadata.prototype.extract = async function (doc) {
 			let doi = doc.metadata[key];
 			if (/10.\d{4,9}\/[^\s]*[^\s\.,]/.test(doi)) {
 				result.doi = doi;
+			}
+		}
+		
+		if (key.toLowerCase().indexOf('author') === 0) { // author / authors
+			let authors = doc.metadata[key];
+			let res = await this.authors.extractFromString(authors);
+			if (res.length) {
+				result.authors = res;
 			}
 		}
 	}

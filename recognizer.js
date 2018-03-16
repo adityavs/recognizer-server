@@ -25,6 +25,7 @@
 
 const utils = require('./utils');
 const Doc = require('./doc');
+const Authors = require('./authors');
 const Title = require('./title');
 const Abstract = require('./abstract');
 const Extract = require('./extract');
@@ -44,9 +45,10 @@ Recognizer.prototype.init = async function () {
 	await this.db.init();
 	
 	this.doc = new Doc();
-	this.title = new Title({db: this.db});
+	this.authors = new Authors({db: this.db});
+	this.title = new Title({db: this.db, authors: this.authors});
 	this.extract = new Extract({db: this.db});
-	this.metadata = new Metadata({db: this.db});
+	this.metadata = new Metadata({db: this.db, authors: this.authors});
 	this.abstract = new Abstract();
 	this.page = new Page();
 	this.jstor = new Jstor();
@@ -73,7 +75,7 @@ Recognizer.prototype.recognize = async function (json) {
 	
 	if (language) result.language = language;
 	
-	result.authors = [];
+	if (!result.authors) result.authors = [];
 	
 	if (!result.doi) {
 		let doi = await this.extract.doi(doc);

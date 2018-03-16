@@ -26,13 +26,12 @@
 const log = require('./log');
 const XRegExp = require('xregexp');
 const utils = require('./utils');
-const Authors = require('./authors');
 
 let areg1 = XRegExp('[\\p{Letter}]');
 
 const Title = function (options) {
 	this.db = options.db;
-	this.authors = new Authors({db: this.db});
+	this.authors = options.authors;
 };
 
 module.exports = Title;
