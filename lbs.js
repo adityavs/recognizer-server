@@ -88,7 +88,7 @@ Lbs.prototype.addLine = function (lbs, line, line2) {
 		}
 		
 		function fn1() {
-			if (skip) return 0;
+			if (lineDominatingFont !== tb.dominatingFont && skip) return 0;
 			
 			if (!(tb.upper === upper || (line.yMin - tb.yMax < tb.maxFontSize &&
 					that.allowUpperNonupper(line, tb.lines[tb.lines.length - 1])))) return 0;
