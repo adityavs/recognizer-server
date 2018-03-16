@@ -49,6 +49,7 @@ Abstract.prototype.extractBeforeKeywords = function (page) {
 			}
 			abstract = abstract.trim();
 			if (
+				abstract.length &&
 				abstract[0] === abstract[0].toUpperCase() &&
 				abstract[abstract.length - 1] === '.' &&
 				abstract.length > 200 && abstract.length < 3000
