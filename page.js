@@ -24,6 +24,7 @@
  */
 
 const log = require('./log');
+const utils = require('./utils');
 
 const Page = function () {
 	
@@ -382,4 +383,42 @@ Page.prototype.getTitleBreakLine = function (doc) {
 	})();
 	
 	return breakLine;
+};
+
+Page.prototype.detectLanguage = async function (doc) {
+	let lgs = {};
+	for (let page of doc.pages) {
+		let result = await utils.detectLanguage(page.text);
+		if (!result) continue;
+		
+		let percent = result.textBytes * 100 / utils.byteLength(page.text);
+		
+		if (result.languages[0].percent < 50 || percent < 30) continue;
+		
+		let lg = result.languages[0].code;
+		if (!lgs[lg]) {
+			lgs[lg] = 1;
+		}
+		else {
+			lgs[lg]++;
+		}
+		
+	}
+	
+	let lg = null;
+	let lgCount = 0;
+	
+	for (let key in lgs) {
+		let value = lgs[key];
+		if (lgCount < value) {
+			lg = key;
+			lgCount = value;
+		}
+	}
+	
+	if (
+		doc.pages.length === 1 && lgCount === 1 ||
+		doc.pages.length >= 2 && lgCount >= 2) return lg;
+	
+	return null;
 };

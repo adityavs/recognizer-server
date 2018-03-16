@@ -24,6 +24,7 @@
  */
 
 const XRegExp = require('xregexp');
+const cld = require('cld');
 
 exports.normalize = function (text) {
 	let rx = XRegExp('[^\\pL]', 'g');
@@ -32,4 +33,19 @@ exports.normalize = function (text) {
 	text = XRegExp.replace(text, rx, '');
 	text = text.toLowerCase();
 	return text;
+};
+
+exports.detectLanguage = function (text) {
+	return new Promise(function (resolve, reject) {
+		cld.detect(text, function (err, result) {
+			resolve(result);
+		});
+	});
+};
+
+// https://stackoverflow.com/a/5515960
+exports.byteLength = function (str) {
+	// Matches only the 10.. bytes that are non-initial characters in a multi-byte sequence.
+	let m = encodeURIComponent(str).match(/%[89ABab]/g);
+	return str.length + (m ? m.length : 0);
 };

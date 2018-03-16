@@ -57,14 +57,21 @@ Recognizer.prototype.recognize = async function (json) {
 	let doc = this.doc.getDoc(json);
 	if (!doc) throw new Error('Invalid doc');
 	
+	let language = await this.page.detectLanguage(doc);
+	
+	let result = {};
 	let res;
 	
 	res = this.jstor.extract(doc.pages[0]);
-	if (res) return res;
-	
-	let result = {};
+	if (res) {
+		result = res;
+		if (language) result.language = language;
+		return result;
+	}
 	
 	result = await this.metadata.extract(doc);
+	
+	if (language) result.language = language;
 	
 	result.authors = [];
 	
@@ -131,7 +138,7 @@ Recognizer.prototype.recognize = async function (json) {
 			result.authors = res;
 		}
 	}
-	else {
+	else if (this.isLanguageAllowed(result.language)) {
 		res = null;
 		
 		let pageIndex = pageInfo.firstPage;
@@ -165,4 +172,16 @@ Recognizer.prototype.recognize = async function (json) {
 	}
 	
 	return result;
+};
+
+Recognizer.prototype.isLanguageAllowed = function (code) {
+	let allowedCodes = [
+		"af", "sq", "ay", "eu", "bs", "ca", "cs", "ch", "cy", "da", "de", "nl", "en",
+		"et", "fo", "fj", "fi", "fr", "fy", "ga", "gl", "gv", "gn", "ht", "hr", "hu",
+		"is", "id", "it", "kl", "rw", "lv", "ln", "lt", "lb", "mh", "ms", "mg", "mt",
+		"na", "nr", "nd", "nn", "nb", "no", "ny", "om", "pl", "pt", "qu", "rm", "ro",
+		"rn", "sg", "sk", "sl", "sm", "so", "st", "es", "ss", "sw", "sv", "tl", "to",
+		"tn", "ts", "tr", "ve", "vi", "xh", "zu"
+	];
+	return allowedCodes.includes(code);
 };

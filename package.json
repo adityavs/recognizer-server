@@ -11,6 +11,7 @@
   "license": "AGPL-3.0",
   "dependencies": {
     "aws-sdk": "^2.206.0",
+    "cld": "^2.4.8",
     "config": "^1.29.4",
     "int64-buffer": "^0.1.10",
     "koa": "^2.5.0",
