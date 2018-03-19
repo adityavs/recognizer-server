@@ -180,7 +180,7 @@ Title.prototype.getDoi = async function (doc, breakLine) {
 	let normText = utils.normalize(doc.text);
 	
 	let pages = doc.pages;
-	for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+	for (let pageIndex = 0; pageIndex < pages.length && pageIndex < 2; pageIndex++) {
 		let page = pages[pageIndex];
 		let lbs = page.lbs;
 		
