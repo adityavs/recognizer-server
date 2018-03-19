@@ -84,6 +84,10 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		
 		let uchar = ustr[i];
 		
+		// Temporary fix for pdftotext incorrectly decomposed characters with an accent
+		// i.e. "Go´mez". All accents are ignored
+		if (['´', '^', 'ˆ', '¨', '`', '˜', '∼', '¸'].includes(uchar.c)) continue;
+		
 		function fn1() {
 			
 			if (uchar.c === '~') return 1;
