@@ -77,11 +77,6 @@ Recognizer.prototype.recognize = async function (json) {
 	
 	if (!result.authors) result.authors = [];
 	
-	if (!result.doi) {
-		let doi = await this.extract.doi(doc);
-		if (doi) result.doi = doi;
-	}
-	
 	res = this.extract.isbn(doc.text);
 	if (res) result.isbn = res;
 	
@@ -170,6 +165,11 @@ Recognizer.prototype.recognize = async function (json) {
 	
 	if (!result.doi) {
 		let doi = await this.title.getDoi(doc, breakLine);
+		if (doi) result.doi = doi;
+	}
+	
+	if (!result.doi) {
+		let doi = await this.extract.doi(doc);
 		if (doi) result.doi = doi;
 	}
 	
