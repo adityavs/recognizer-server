@@ -71,6 +71,15 @@ Title.prototype.isVisuallySeparated = function (lbs, i) {
 	return 1;
 };
 
+Title.prototype.wordsCount = function (title) {
+	let parts = title.split(' ');
+	let count = 0;
+	for (let part of parts) {
+		if (part.length) count++;
+	}
+	return count;
+};
+
 Title.prototype.cleanTitle = function (title) {
 	return title.replace(/[*1]$/, '');
 };
@@ -96,6 +105,8 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (title.length < 25 || title.length > 400) continue;
 		
+		if (this.wordsCount(title) < 2) continue;
+		
 		if (this.getAlphabeticPercent(title) < 60) continue;
 		
 		if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
@@ -119,6 +130,7 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (title.length < 20 || title.length > 400) continue;
 		if (this.getAlphabeticPercent(title) < 60) continue;
+		if (this.wordsCount(title) < 2) continue;
 		
 		if (!this.isVisuallySeparated(lbs, i)) continue;
 		
