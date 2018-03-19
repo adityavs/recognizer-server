@@ -4,7 +4,7 @@ const XRegExp = require('xregexp');
 const Int64LE = require("int64-buffer").Int64LE;
 
 const reg1 = XRegExp('[\\p{Letter}]');
-const reg2 = XRegExp('[\\p{Letter}\\p{Dash_Punctuation}`\']');
+const reg2 = XRegExp('[\\p{Letter}\\p{Dash_Punctuation}’\']');
 
 function normalize(text) {
 	let rx = XRegExp('[^\\pL]', 'g');
