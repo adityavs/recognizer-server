@@ -186,6 +186,9 @@ Title.prototype.getDoi = async function (doc, breakLine) {
 		
 		if (breakLine && pageIndex > breakLine.pageIndex) break;
 		
+		let foundDoi = null;
+		let foundDoisCount = 0;
+		
 		for (let i = 0; i < lbs.length; i++) {
 			let gb = lbs[i];
 			
@@ -206,7 +209,9 @@ Title.prototype.getDoi = async function (doc, breakLine) {
 				let doi = await this.db.getDoiByTitle(normTitle, normText);
 				if (doi) {
 					log.debug("found doi1", doi);
-					return doi;
+					foundDoi = doi;
+					foundDoisCount++;
+					if (foundDoisCount >= 2) return null;
 				}
 			}
 			
@@ -224,10 +229,13 @@ Title.prototype.getDoi = async function (doc, breakLine) {
 				let doi = await this.db.getDoiByTitle(normTitle, normText);
 				if (doi) {
 					log.debug("found doi2", doi);
-					return doi;
+					foundDoi = doi;
+					foundDoisCount++;
+					if (foundDoisCount >= 2) return null;
 				}
 			}
 		}
+		if (foundDoi) return foundDoi;
 	}
 	return null;
 };
