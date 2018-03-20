@@ -19,6 +19,7 @@
     "koa-bodyparser": "^4.2.0",
     "koa-compress": "^2.0.0",
     "koa-router": "^7.4.0",
+		"moment": "^2.21.0",
     "sqlite": "^2.9.1",
     "winston": "^2.4.0",
     "xregexp": "^4.1.1",

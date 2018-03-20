@@ -26,6 +26,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const AWS = require('aws-sdk');
+const moment = require('moment');
 const Koa = require('koa');
 const Router = require('koa-router');
 const compress = require('koa-compress');
@@ -67,7 +68,19 @@ app.use(async function (ctx, next) {
 		}
 	}
 	
-	log.info('%s %s %d %dms %s', ctx.method.toUpperCase(), ctx.url, ctx.status, Date.now() - start, ctx.ip);
+	log.info(
+		'request: %s - - [%s] "%s %s %s/%s" %s %d "%s" "%s"',
+		ctx.ip,
+		moment().format('D/MMM/YYYY:HH:mm:ss ZZ'),
+		ctx.method.toUpperCase(),
+		ctx.url,
+		ctx.protocol.toUpperCase(),
+		ctx.req.httpVersion,
+		ctx.status,
+		ctx.length || 0,
+		ctx.headers['referer'] || '-',
+		ctx.headers['user-agent'] || '-'
+	);
 });
 
 app.use(bodyParser());
@@ -143,6 +156,7 @@ function shutdown() {
 // Client connection errors
 app.on('error', function (err, ctx) {
 	log.debug('App error: ', err, ctx);
+	log.info('client error: %s %s', ctx.ip, err.message);
 });
 
 module.exports = async function (callback) {
