@@ -12,5 +12,9 @@ module.exports = {
 		},
 		accessKeyId: '',
 		secretAccessKey: ''
+	},
+	statsD: {
+		host: '',
+		port: 8125
 	}
 };

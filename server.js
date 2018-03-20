@@ -33,6 +33,7 @@ const compress = require('koa-compress');
 const config = require('config');
 const bodyParser = require('koa-bodyparser');
 const log = require('./log');
+const statsD = require('./statsd');
 const Recognizer = require('./recognizer');
 
 const s3Client = new AWS.S3(config.get('s3'));
@@ -81,6 +82,8 @@ app.use(async function (ctx, next) {
 		ctx.headers['referer'] || '-',
 		ctx.headers['user-agent'] || '-'
 	);
+	
+	statsD.timing('response_time', Date.now() - start);
 });
 
 app.use(bodyParser());
@@ -104,6 +107,7 @@ router.post('/recognize', async function (ctx) {
 	let res = await recognizer.recognize(json);
 	if (!res) res = {};
 	res.timeMs = Date.now()-t;
+	statsD.timing('recognition_time', res.timeMs);
 	log.debug('request processed in %dms', Date.now()-t);
 	ctx.body = res;
 	log.debug(res);
