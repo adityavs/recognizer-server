@@ -69,6 +69,16 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 	let stmt = await this.doidata.prepare('SELECT * FROM doidata WHERE title_hash = CAST(? AS INTEGER) LIMIT 2', [title_hash]);
 	let row1 = await stmt.get();
 	let row2 = await stmt.get();
+	
+	if (
+		row1 && row2 && row1.author1_len && row2.author1_len &&
+		row1.author1_len === row2.author1_len &&
+		row1.author1_hash === row2.author1_hash
+	) {
+		// Todo: Possible to utilize the detected title for title extraction
+		return 0;
+	}
+	
 	if (row1) {
 		if (!row2 && title.length >= 50) return row1.doi;
 		
