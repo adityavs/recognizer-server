@@ -355,12 +355,14 @@ Authors.prototype.getAuthors = async function (lb) {
 		for (let author of authors) {
 			let negative = 0;
 			let positive = 0;
+			let lastNegativeValue = 0;
 			for (let name of author.names) {
 				if (name.length < 3) continue;
 				
 				let type = await this.getWordType(name);
 				if (type < 0) {
 					negative++;
+					lastNegativeValue = type;
 				}
 				else if (type > 0) {
 					positive++;
@@ -378,7 +380,7 @@ Authors.prototype.getAuthors = async function (lb) {
 			else {
 				if (negative === 0) c = 2;
 				if (authors.length === 1) {
-					if (negative && positive) c = 1;
+					if (negative && positive && lastNegativeValue > -30) c = 1;
 					//if (negative < author.names.length) c = 1;
 				}
 				else {
