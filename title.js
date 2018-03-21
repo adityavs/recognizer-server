@@ -45,16 +45,25 @@ Title.prototype.getAlphabeticPercent = function (text) {
 	return alphabetic * 100 / text.length;
 };
 
-Title.prototype.get_average_font_size_threshold = function (page) {
-	let min_font_size = 0;
+Title.prototype.getFontsizeThreshold = function (page) {
+	let minFontsize = 0;
 	
 	for (let fontsize in page.fsDist) {
 		fontsize = parseFloat(fontsize);
 		let fontcount = page.fsDist[fontsize];
-		if (fontcount > 500 && min_font_size < fontsize) min_font_size = fontsize;
+		if (fontcount > 400 && minFontsize < fontsize) minFontsize = fontsize;
 	}
 	
-	return min_font_size + 1;
+	if (minFontsize) {
+		return minFontsize + 1;
+	}
+	
+	let d = Object.keys(page.fsDist).map(function (value) {
+		return parseFloat(value);
+	});
+	if (!d.length) return 0;
+	d.sort();
+	return d.pop();
 };
 
 Title.prototype.isVisuallySeparated = function (lbs, i) {
@@ -86,7 +95,7 @@ Title.prototype.cleanTitle = function (title) {
 
 Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 	let lbs = page.lbs;
-	let font_size_threshold = this.get_average_font_size_threshold(page);
+	let font_size_threshold = this.getFontsizeThreshold(page);
 	let lbsSorted = lbs.slice();
 	lbsSorted.sort(function (a, b) {
 		if (a.maxFontSize > b.maxFontSize) return -1;
@@ -109,7 +118,7 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (this.getAlphabeticPercent(title) < 60) continue;
 		
-		if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
+		//if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
 		
 		let authors = await this.authors.extractAuthors(lbs, lbs.indexOf(tlb));
 		if (authors.length) {
