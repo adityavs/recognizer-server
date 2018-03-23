@@ -130,9 +130,11 @@ Recognizer.prototype.recognize = async function (json) {
 	}
 	
 	if (result.title) {
-		res = await this.title.getAuthorsByExistingTitle(doc, result.title);
-		if (res) {
-			result.authors = res;
+		if (!result.authors.length) {
+			res = await this.title.getAuthorsByExistingTitle(doc, result.title);
+			if (res) {
+				result.authors = res;
+			}
 		}
 	}
 	else if (this.isLanguageAllowed(result.language)) {
