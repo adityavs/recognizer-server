@@ -65,6 +65,14 @@ Metadata.prototype.extract = async function (doc) {
 				result.authors = res;
 			}
 		}
+		
+		if (['isbn'].includes(key.toLowerCase())) {
+			let isbn = doc.metadata[key];
+			isbn = isbn.replace(/[^0-9X]/gi, '');
+			if (isbn.length === 10 || isbn.length === 13) {
+				result.isbn = isbn;
+			}
+		}
 	}
 	return result;
 };
