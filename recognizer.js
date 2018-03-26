@@ -104,6 +104,9 @@ Recognizer.prototype.recognize = async function (json) {
 	res = this.extract.issue(text);
 	if (res) result.issue = res;
 	
+	res = this.extract.keywords(doc);
+	if (res) result.keywords = res;
+	
 	result.type = 'journal-article';
 	
 	let pageInfo = this.page.getInfo(doc);

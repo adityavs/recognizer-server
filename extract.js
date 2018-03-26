@@ -167,3 +167,43 @@ Extract.prototype.journal = async function (text) {
 	}
 	return null;
 };
+
+Extract.prototype.keywords = function (doc) {
+	for (let i = 0; i < doc.pages.length && i < 2; i++) {
+		let page = doc.pages[i];
+		for (let lb of page.lbs) {
+			
+			let text = '';
+			for (let line of lb.lines) text += line.text + ' ';
+			
+			if (!utils.isUpper(text[0])) continue;
+			
+			let rx = XRegExp('^(keywords|key words|indexing terms)([\\p{Punctuation}\\p{Letter}\\p{Space_Separator}0-9]*)', 'i');
+			let m = XRegExp.exec(text, rx);
+			
+			if (m) {
+				let rx = XRegExp('[^\\p{Letter}\\p{Space_Separator}\\-0-9]');
+				let parts = XRegExp.split(m[2], rx);
+				
+				let keywords = [];
+				let skip = false;
+				for (let part of parts) {
+					part = part.trim();
+					if (!part.length) continue;
+					if (part.split(' ').length > 3) {
+						skip = true;
+						break;
+					}
+					keywords.push(part);
+				}
+				
+				if (skip) continue;
+				
+				if (keywords.length < 2) continue;
+				
+				return keywords;
+			}
+		}
+	}
+	return null;
+};

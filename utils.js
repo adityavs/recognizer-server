@@ -90,3 +90,8 @@ exports.isValidIsbn = function (str) {
 		return (check == str[str.length - 1].toUpperCase());
 	}
 };
+
+exports.isUpper = function (c) {
+	if (!c) return false;
+	return c === c.toString().toUpperCase()
+};
