@@ -29,7 +29,36 @@ const Jstor = function () {
 
 module.exports = Jstor;
 
-Jstor.prototype.getData = function (lbs) {
+Jstor.prototype.getMetadataText = function (page) {
+	let lbs = [];
+	
+	for (let flow of page.flows) {
+		for (let block of flow.blocks) {
+			for (let i = 0; i < block.lines.length; i++) {
+				let line = block.lines[i];
+				
+				if (!line.words.length) continue;
+				
+				let prevLine = null;
+				let lastLb = null;
+				
+				if (lbs.length) {
+					lastLb = lbs[lbs.length - 1];
+					prevLine = lastLb.lines[lastLb.lines.length - 1];
+				}
+				
+				if (!prevLine || line.yMin - prevLine.yMax > line.words[0].fontsize) {
+					lbs.push({
+						lines: [line]
+					});
+				}
+				else {
+					lastLb.lines.push(line);
+				}
+			}
+		}
+	}
+	
 	let text = '';
 	let started = false;
 	for (let lb of lbs) {
@@ -52,7 +81,7 @@ Jstor.prototype.extract = function (page) {
 	let published_by = '';
 	let text;
 	
-	if (!(text = this.getData(page.lbs))) return 0;
+	if (!(text = this.getMetadataText(page))) return 0;
 	
 	let is_book = 0;
 	
