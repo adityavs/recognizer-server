@@ -68,6 +68,10 @@ Recognizer.prototype.recognize = async function (json) {
 	if (res) {
 		result = res;
 		if (language) result.language = language;
+		
+		res = this.abstract.extract(doc);
+		if (res) result.abstract = res.text;
+		
 		return result;
 	}
 	
