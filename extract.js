@@ -24,6 +24,7 @@
  */
 
 const XRegExp = require('xregexp');
+const utils = require('./utils');
 
 const Extract = function (options) {
 	this.db = options.db;
@@ -33,23 +34,25 @@ module.exports = Extract;
 
 Extract.prototype.isbn = function (text) {
 	let rx = /(SBN|sbn)[ \u2014\u2013\u2012-]?(10|13)?[: ]*([0-9X][0-9X \u2014\u2013\u2012-]+)/g;
-	
 	let m;
 	while (m = rx.exec(text)) {
-		let str = m[3];
-		let isbn = '';
-		for (let c of str) {
-			if (/[0-9X]/.test(c)) {
-				isbn += c;
-				if (isbn.length > 13) break;
-			}
-		}
+		let isbn = m[3].replace(/[^0-9X]/gi, '');
 		
 		if (isbn.length === 10 || isbn.length === 13) {
 			return isbn;
 		}
+		
+		if (isbn.length === 20 || isbn.length === 26) {
+			return isbn.slice(0, isbn.length / 2);
+		}
+		
+		if (isbn.length === 23) {
+			let isbn13 = isbn.slice(0, 13);
+			let isbn10 = isbn.slice(0, 10);
+			if (utils.isValidIsbn(isbn13)) return isbn13;
+			if (utils.isValidIsbn(isbn10)) return isbn10;
+		}
 	}
-	
 	return null;
 };
 
