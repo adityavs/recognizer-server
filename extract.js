@@ -171,26 +171,64 @@ Extract.prototype.journal = async function (text) {
 Extract.prototype.keywords = function (doc) {
 	for (let i = 0; i < doc.pages.length && i < 2; i++) {
 		let page = doc.pages[i];
-		for (let lb of page.lbs) {
-			
+		
+		let lbs = [];
+		for (let flow of page.flows) {
+			for (let block of flow.blocks) {
+				for (let i = 0; i < block.lines.length; i++) {
+					let line = block.lines[i];
+					
+					if (!line.words.length) continue;
+					
+					let lastLb = null;
+					let prevWord = null;
+					
+					if (lbs.length) {
+						lastLb = lbs[lbs.length - 1];
+						let prevLine = lastLb.lines[lastLb.lines.length - 1];
+						prevWord = prevLine.words[prevLine.words.length - 1];
+					}
+					
+					if (!(prevWord &&
+						prevWord.font === line.words[0].font &&
+						line.yMin - prevWord.yMax < prevWord.fontsize / 2)) {
+						lbs.push({
+							lines: [line]
+						});
+					}
+					else {
+						lastLb.lines.push(line);
+					}
+				}
+			}
+		}
+		
+		for (let j = 0; j < lbs.length; j++) {
+			let lb = lbs[j];
 			let text = '';
-			for (let line of lb.lines) text += line.text + ' ';
+			for (let line of lb.lines) {
+				text += line.text;
+				if (text[text.length - 1] === '-') {
+					text = text.slice(0, text.length - 2);
+				}
+				else {
+					if (j + 1 !== lbs.length) text += ' ';
+				}
+			}
 			
 			if (!utils.isUpper(text[0])) continue;
 			
-			let rx = XRegExp('^(keywords|key words|indexing terms)([\\p{Punctuation}\\p{Letter}\\p{Space_Separator}0-9]*)', 'i');
-			let m = XRegExp.exec(text, rx);
+			let m = /^(keywords|key words|key-words|indexing terms)[ :\-—]*(.*)/i.exec(text);
 			
 			if (m) {
-				let rx = XRegExp('[^\\p{Letter}\\p{Space_Separator}\\-0-9]');
-				let parts = XRegExp.split(m[2], rx);
+				let parts = m[2].split(/[;,.·—]/);
 				
 				let keywords = [];
 				let skip = false;
 				for (let part of parts) {
 					part = part.trim();
 					if (!part.length) continue;
-					if (part.split(' ').length > 3) {
+					if (part.length <= 2 || part.split(' ').length > 3) {
 						skip = true;
 						break;
 					}
