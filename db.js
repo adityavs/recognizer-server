@@ -70,11 +70,7 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 	let row1 = await stmt.get();
 	let row2 = await stmt.get();
 	
-	if (
-		row1 && row2 && row1.author1_len && row2.author1_len &&
-		row1.author1_len === row2.author1_len &&
-		row1.author1_hash === row2.author1_hash
-	) {
+	if (row1 && row2) {
 		// Todo: Possible to utilize the detected title for title extraction
 		return 0;
 	}
