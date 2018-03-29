@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "test": "NODE_ENV=test ./node_modules/mocha/bin/mocha",
-    "pdftest": "node test/pdftest.js"
+		"pdftest": "NODE_ENV=test ./node_modules/mocha/bin/mocha test/pdftest.js --exit"
   },
   "author": "Martynas Bagdonas",
   "license": "AGPL-3.0",

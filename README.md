@@ -1,5 +1,7 @@
 # recognizer-server
 
+[![Build Status](https://travis-ci.org/zotero/recognizer-server.svg?branch=master)](https://travis-ci.org/zotero/recognizer-server)
+
 Extracts metadata from PDFs.
 
 ```
