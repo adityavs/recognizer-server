@@ -62,7 +62,7 @@ Db.prototype.getWord = async function (word) {
 	return await stmt.get();
 };
 
-Db.prototype.getDoiByTitle = async function (title, text) {
+Db.prototype.getDoiByTitle = async function (title, text, validateAuthor) {
 	let title_hash = XXHash.hash64(new Buffer(title), 0, 'buffer');
 	title_hash = Int64LE(title_hash).toString();
 	
@@ -76,7 +76,7 @@ Db.prototype.getDoiByTitle = async function (title, text) {
 	}
 	
 	if (row1) {
-		if (!row2 && title.length >= 50) return row1.doi;
+		if (title.length >= 50 && !validateAuthor) return row1.doi;
 		
 		let author1Found = row1.author1_len >= 4 && this.findAuthor(text, row1.author1_hash, row1.author1_len);
 		let author2Found = row1.author2_len >= 4 && this.findAuthor(text, row1.author2_hash, row1.author2_len);

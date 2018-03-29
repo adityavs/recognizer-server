@@ -44,7 +44,7 @@ Metadata.prototype.extract = async function (doc) {
 				result.title = doc.metadata[key].trim();
 			}
 			
-			let doi = await this.db.getDoiByTitle(normTitle, normText);
+			let doi = await this.db.getDoiByTitle(normTitle, normText, true);
 			if (doi) {
 				result.title = doc.metadata[key].trim();
 				result.doi = doi;
