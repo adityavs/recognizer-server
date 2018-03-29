@@ -11,6 +11,7 @@ install:
   - aws s3 cp s3://zotero-recognizer/data/pdftest-data.tar.gz ./
   - unset AWS_ACCESS_KEY_ID
   - unset AWS_SECRET_ACCESS_KEY
+  - df -h
   - tar -xzf db.tar.gz
   - tar -xzf pdftest-data.tar.gz -C ./test/
   - rm -rf db.tar.gz pdftest-data.tar.gz
@@ -19,5 +20,4 @@ install:
   - npm i
   - cp config/default-sample.js config/default.js
 script:
-  - df -h
   - npm run pdftest
