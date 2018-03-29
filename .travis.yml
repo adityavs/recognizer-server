@@ -11,9 +11,9 @@ install:
   - aws s3 cp s3://zotero-recognizer/data/pdftest-data.tar.gz ./
   - unset AWS_ACCESS_KEY_ID
   - unset AWS_SECRET_ACCESS_KEY
-  - df -h
   - tar -xzf db.tar.gz
   - tar -xzf pdftest-data.tar.gz -C ./test/
+  - df -h
   - rm -rf db.tar.gz pdftest-data.tar.gz
   - curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
   - sudo apt-get install -y nodejs
