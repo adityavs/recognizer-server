@@ -216,7 +216,59 @@ Authors.prototype.getWordType = async function (word) {
 	else return 0;
 };
 
-Authors.prototype.extractFromString = async function (str) {
+Authors.prototype.extractFromStringType2 = async function (str) {
+	let parts = str.split(/[,;]|and|und/);
+	parts = parts.map(str => str.trim());
+	
+	let authors = [];
+	
+	if (parts.length % 2 !== 0) return null;
+	
+	for (let i = 0; i < parts.length; i += 2) {
+		let last = parts[i];
+		let first = parts[i + 1];
+		
+		if (last.split(' ').length > 1) return null;
+		
+		let names = [];
+		
+		let ps = first.split(/[. ]/);
+		for (let p of ps) {
+			if (p.length) names.push(p);
+		}
+		
+		names.push(last);
+		authors.push(names);
+	}
+	
+	let result = [];
+	let found = false;
+	for (let author of authors) {
+		if (!found) {
+			for (let name of author) {
+				if (name.length >= 3) {
+					let type = await this.getWordType(name);
+					if (type > 0) {
+						found = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		let firstName;
+		let lastName;
+		lastName = author.pop();
+		firstName = author.join(' ');
+		
+		result.push({firstName, lastName});
+	}
+	
+	if (found) return result;
+	return null;
+};
+
+Authors.prototype.extractFromStringType1 = async function (str) {
 	let authors = [];
 	let names = [];
 	let name = '';
@@ -313,12 +365,14 @@ Authors.prototype.extractFromString = async function (str) {
 	let result = [];
 	let found = false;
 	for (let author of authors) {
-		for (let name of author.names) {
-			if (name.length >= 3) {
-				let type = await this.getWordType(name);
-				if (type > 0) {
-					found = true;
-					break;
+		if (!found) {
+			for (let name of author.names) {
+				if (name.length >= 3) {
+					let type = await this.getWordType(name);
+					if (type > 0) {
+						found = true;
+						break;
+					}
 				}
 			}
 		}
@@ -332,7 +386,7 @@ Authors.prototype.extractFromString = async function (str) {
 	}
 	
 	if (found) return result;
-	return [];
+	return null;
 };
 
 Authors.prototype.getAuthors = async function (lb) {

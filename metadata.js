@@ -60,9 +60,15 @@ Metadata.prototype.extract = async function (doc) {
 		
 		if (key.toLowerCase().indexOf('author') === 0) { // author / authors
 			let authors = doc.metadata[key];
-			let res = await this.authors.extractFromString(authors);
-			if (res.length) {
+			let res = await this.authors.extractFromStringType1(authors);
+			if (res) {
 				result.authors = res;
+			}
+			else {
+				res = await this.authors.extractFromStringType2(authors);
+				if (res) {
+					result.authors = res;
+				}
 			}
 		}
 		
