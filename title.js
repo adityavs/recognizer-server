@@ -93,6 +93,11 @@ Title.prototype.cleanTitle = function (title) {
 	return title.replace(/[*1]$/, '');
 };
 
+Title.prototype.hasQuoteMarks = function (title) {
+	return /["'\u2018\u2019\u201c\u201d\u0060\u00b4]/.test(title[0]) &&
+		/["'\u2018\u2019\u201c\u201d\u0060\u00b4]/.test(title.slice(-1));
+};
+
 Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 	let lbs = page.lbs;
 	let font_size_threshold = this.getFontsizeThreshold(page);
@@ -118,6 +123,8 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (this.getAlphabeticPercent(title) < 60) continue;
 		
+		if (this.hasQuoteMarks(title)) continue;
+		
 		//if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
 		
 		let authors = await this.authors.extractAuthors(lbs, lbs.indexOf(tlb));
@@ -142,6 +149,8 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		if (this.wordsCount(title) < 2) continue;
 		
 		if (!this.isVisuallySeparated(lbs, i)) continue;
+		
+		if (this.hasQuoteMarks(title)) continue;
 		
 		let authors = await this.authors.extractAuthors(lbs, i);
 		if (authors.length) {
