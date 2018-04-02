@@ -231,6 +231,8 @@ Abstract.prototype.extractStructured = function (page) {
 				foundTypes.push(type);
 				sectionLines.push(line_i);
 			}
+			
+			if (type === 3) break;
 		}
 		
 		if (foundTypes.length < 3 || foundTypes[foundTypes.length - 1] !== 3) return null;
