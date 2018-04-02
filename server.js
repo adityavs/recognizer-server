@@ -83,8 +83,8 @@ app.use(async function (ctx, next) {
 		ctx.length || 0,
 		ctx.headers['referer'] || '-',
 		ctx.headers['user-agent'] || '-',
-		responseTime,
-		ctx.recognitionTime || '-'
+		ctx.recognitionTime || '-',
+		responseTime
 	);
 	
 	statsD.timing('response_time', responseTime);
