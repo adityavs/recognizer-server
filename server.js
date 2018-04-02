@@ -69,8 +69,10 @@ app.use(async function (ctx, next) {
 		}
 	}
 	
+	let responseTime = Date.now() - start;
+	
 	log.info(
-		'request: %s - - [%s] "%s %s %s/%s" %s %d "%s" "%s"',
+		'request: %s - - [%s] "%s %s %s/%s" %s %d "%s" "%s" %s/%s',
 		ctx.ip,
 		moment().format('D/MMM/YYYY:HH:mm:ss ZZ'),
 		ctx.method.toUpperCase(),
@@ -80,10 +82,12 @@ app.use(async function (ctx, next) {
 		ctx.status,
 		ctx.length || 0,
 		ctx.headers['referer'] || '-',
-		ctx.headers['user-agent'] || '-'
+		ctx.headers['user-agent'] || '-',
+		responseTime,
+		ctx.recognitionTime || '-'
 	);
 	
-	statsD.timing('response_time', Date.now() - start);
+	statsD.timing('response_time', responseTime);
 });
 
 app.use(bodyParser());
@@ -106,9 +110,11 @@ router.post('/recognize', async function (ctx) {
 	let t = Date.now();
 	let res = await recognizer.recognize(json);
 	if (!res) res = {};
-	res.timeMs = Date.now()-t;
-	statsD.timing('recognition_time', res.timeMs);
-	log.debug('request processed in %dms', Date.now()-t);
+	let recognitionTime = Date.now() - t;
+	res.timeMs = recognitionTime;
+	ctx.recognitionTime = recognitionTime;
+	statsD.timing('recognition_time', recognitionTime);
+	log.debug('request processed in %dms', recognitionTime);
 	ctx.body = res;
 	log.debug(res);
 });
