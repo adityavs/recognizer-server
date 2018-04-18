@@ -57,9 +57,8 @@ Extract.prototype.isbn = function (text) {
 };
 
 Extract.prototype.arxiv = function (text) {
-	let m = /arXiv:([a-zA-Z0-9\.\/]+)/g.exec(text);
-	
-	if (m) return m[1];
+	let m = /arXiv: ?(([\-A-Za-z\.]+\/\d{7})(?:(v[0-9]+)|)(?!\d))|arXiv: ?((\d{4}.\d{4,5})(?:(v[0-9]+)|)(?!\d))/g.exec(text);
+	if (m) return m[2] || m[5];
 	return null;
 };
 
