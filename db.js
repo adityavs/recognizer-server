@@ -78,14 +78,17 @@ Db.prototype.getDoiByTitle = async function (title, text, validateAuthor) {
 	if (row1) {
 		if (title.length >= 50 && !validateAuthor) return row1.doi;
 		
-		let author1Found = row1.author1_len >= 4 && this.findAuthor(text, row1.author1_hash, row1.author1_len);
-		let author2Found = row1.author2_len >= 4 && this.findAuthor(text, row1.author2_hash, row1.author2_len);
+		let checkAuthor1 = row1.author1_len >= 4;
+		let checkAuthor2 = row1.author2_len >= 4;
+		
+		let foundAuthor1 = checkAuthor1 && this.findAuthor(text, row1.author1_hash, row1.author1_len);
+		let foundAuthor2 = checkAuthor2 && this.findAuthor(text, row1.author2_hash, row1.author2_len);
 		
 		if (title.length < 30) {
-			if (author1Found && author2Found) return row1.doi;
+			if (foundAuthor1 && (!checkAuthor2 || foundAuthor2)) return row1.doi;
 		}
 		else {
-			if (author1Found || author2Found) return row1.doi;
+			if (foundAuthor1 || foundAuthor2) return row1.doi;
 		}
 	}
 	return 0;
