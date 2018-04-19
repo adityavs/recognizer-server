@@ -84,8 +84,10 @@ Recognizer.prototype.recognize = async function (json) {
 	res = this.extract.isbn(doc.text);
 	if (res) result.isbn = res;
 	
-	res = this.extract.arxiv(doc.text);
-	if (res) result.arxiv = res;
+	if (doc.pages.length) {
+		res = this.extract.arxiv(doc.pages[0].text);
+		if (res) result.arxiv = res;
+	}
 	
 	res = this.extract.issn(doc.text);
 	if (res) result.issn = res;
