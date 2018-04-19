@@ -227,7 +227,7 @@ Lbs.prototype.getLineDominatingFont = function (line) {
 Lbs.prototype.getLineDominatingFontsize = function (line) {
 	let fontsizes = {};
 	for (let word of line.words) {
-		if (!fontsizes[word.font]) {
+		if (!fontsizes[word.fontsize]) {
 			fontsizes[word.fontsize] = word.text.length;
 		}
 		else {
