@@ -99,7 +99,6 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 				
 				if (font !== null && uchar.word.font !== font || fontsize > 1 && Math.abs(uchar.word.fontsize - fontsize) > 1.0 &&
 					Math.abs(uchar.word.baseline - baseline) > 1.0) {
-					ref = 1;
 					return 2;
 				}
 				
@@ -118,9 +117,11 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 				
 			}
 			else {
-				if (font !== null && uchar.word.font !== font || Math.abs(uchar.word.fontsize - fontsize) > 1.0 && Math.abs(uchar.word.baseline - baseline) > 1.0 ||
-					uchar.c === '*') {
+				if (/\*|∗|⁎|†|‡|§|¶|⊥|¹|²|³|α|β|λ|ξ|ψ|\d+/.test(uchar.c)) {
 					ref = 1;
+					return 2;
+				}
+				else if (font !== null && uchar.word.font !== font || Math.abs(uchar.word.fontsize - fontsize) > 1.0 && Math.abs(uchar.word.baseline - baseline) > 1.0) {
 					return 2;
 				}
 				else if (reg2.test(uchar.c) && !/[Ææ]/.test(uchar.c)) {
@@ -141,7 +142,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					
 					if (name[0].toUpperCase() !== name[0]) { // if name doesn't start with upper case letter. todo: what about chinese?
 						name = '';
-						return 2;
+						return 3;
 					}
 					
 					names.push(name.slice());
@@ -160,6 +161,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		let r = fn1();
 		
 		if (r === 1) continue;
+		if (r === 3) break;
 		if (r !== 2 && i < ustr.length - 1) continue;
 		
 		
@@ -411,7 +413,7 @@ Authors.prototype.getAuthors = async function (lb) {
 			let positive = 0;
 			let lastNegativeValue = 0;
 			for (let name of author.names) {
-				if (name.length < 3) continue;
+				if (name.length < 2) continue;
 				
 				let type = await this.getWordType(name);
 				if (type < 0) {
