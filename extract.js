@@ -33,17 +33,20 @@ const Extract = function (options) {
 module.exports = Extract;
 
 Extract.prototype.isbn = function (text) {
+	let isbns = [];
 	let rx = /(SBN|sbn)[ \u2014\u2013\u2012-]?(10|13)?[: ]*([0-9X][0-9X \u2014\u2013\u2012-]+)/g;
 	let m;
 	while (m = rx.exec(text)) {
 		let isbn = m[3].replace(/[^0-9X]/gi, '');
 		
 		if (isbn.length === 10 || isbn.length === 13) {
-			return isbn;
+			isbns.push(isbn);
+			continue;
 		}
 		
 		if (isbn.length === 20 || isbn.length === 26) {
-			return isbn.slice(0, isbn.length / 2);
+			isbns.push(isbn.slice(0, isbn.length / 2));
+			continue;
 		}
 		
 		if (isbn.length === 23) {
@@ -53,7 +56,9 @@ Extract.prototype.isbn = function (text) {
 			if (utils.isValidIsbn(isbn10)) return isbn10;
 		}
 	}
-	return null;
+	
+	if (!isbns.length || isbns.length > 3) return null;
+	return isbns[0];
 };
 
 Extract.prototype.arxiv = function (text) {
