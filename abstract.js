@@ -1,4 +1,6 @@
 const XRegExp = require('xregexp');
+const utils = require('./utils');
+
 const Abstract = function () {
 
 };
@@ -70,6 +72,8 @@ Abstract.prototype.extractSimple = function (page) {
 			let line = lines[line_i];
 			
 			if (/^(Keyword|KEYWORD|Key Word|Indexing Terms)/.test(line.text)) break;
+			
+			if (utils.isBreakSection(line.text)) break;
 			
 			abstractLines.push(lines[line_i]);
 			
@@ -224,6 +228,8 @@ Abstract.prototype.extractStructured = function (page) {
 			) continue;
 			
 			let type = getTitle(line.text);
+			
+			if (utils.isBreakSection(line.text)) break;
 			
 			if (foundTypes.includes(type)) continue;
 			

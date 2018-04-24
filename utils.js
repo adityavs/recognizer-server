@@ -95,3 +95,14 @@ exports.isUpper = function (c) {
 	if (!c) return false;
 	return c === c.toString().toUpperCase()
 };
+
+exports.isBreakSection = function (lineText) {
+	let breakSections = [
+		'introduction',
+		'contents',
+		'tableofcontent',
+		'tableofcontents'
+	];
+	return lineText[0] === lineText[0].toUpperCase() &&
+		breakSections.includes(lineText.replace(/[^A-Za-z]/g, '').toLowerCase());
+};
