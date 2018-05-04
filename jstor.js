@@ -32,30 +32,24 @@ module.exports = Jstor;
 Jstor.prototype.getMetadataText = function (page) {
 	let lbs = [];
 	
-	for (let flow of page.flows) {
-		for (let block of flow.blocks) {
-			for (let i = 0; i < block.lines.length; i++) {
-				let line = block.lines[i];
-				
-				if (!line.words.length) continue;
-				
-				let prevLine = null;
-				let lastLb = null;
-				
-				if (lbs.length) {
-					lastLb = lbs[lbs.length - 1];
-					prevLine = lastLb.lines[lastLb.lines.length - 1];
-				}
-				
-				if (!prevLine || line.yMin - prevLine.yMax > line.words[0].fontsize) {
-					lbs.push({
-						lines: [line]
-					});
-				}
-				else {
-					lastLb.lines.push(line);
-				}
-			}
+	for (let line of page.lines) {
+		if (!line.words.length) continue;
+		
+		let prevLine = null;
+		let lastLb = null;
+		
+		if (lbs.length) {
+			lastLb = lbs.slice(-1)[0];
+			prevLine = lastLb.lines.slice(-1)[0];
+		}
+		
+		if (!prevLine || line.yMin - prevLine.yMax > line.words[0].fontSize) {
+			lbs.push({
+				lines: [line]
+			});
+		}
+		else {
+			lastLb.lines.push(line);
 		}
 	}
 	

@@ -55,118 +55,103 @@ Recognizer.prototype.init = async function () {
 };
 
 Recognizer.prototype.recognize = async function (json) {
-	// Process received json to doc
+	// Process the received json to doc
 	let doc = this.doc.getDoc(json);
-	if (!doc) throw new Error('Invalid doc');
+	if (!doc || !doc.pages.length) throw new Error('Invalid doc');
 	
-	let language = await this.page.detectLanguage(doc);
-	
-	let result = {};
 	let res;
 	
-	res = this.jstor.extract(doc.pages[0]);
-	if (res) {
-		result = res;
-		if (language) result.language = language;
-		
-		res = this.abstract.extract(doc);
-		if (res) result.abstract = res.text;
-		
+	// Init default parameters
+	let result = {type: 'journal-article', authors: []};
+	
+	if (res = await this.page.detectLanguage(doc)) result.language = res;
+	
+	// For JSTOR PDF, parse metadata in the first page and extract abstract
+	if (res = this.jstor.extract(doc.pages[0])) {
+		result = Object.assign(result, res);
+		if (res = this.abstract.extract(doc)) result.abstract = res.text;
 		return result;
 	}
 	
-	result = await this.metadata.extract(doc);
+	// Extract PDF file metadata
+	res = await this.metadata.extract(doc);
+	result = Object.assign(result, res);
 	
-	if (language) result.language = language;
+	if (res = this.extract.isbn(doc.text)) result.isbn = res;
+	if (res = this.extract.arxiv(doc.pages[0].text)) result.arxiv = res;
+	if (res = this.extract.issn(doc.text)) result.issn = res;
 	
-	if (!result.authors) result.authors = [];
+	// Extract journal name, volume, year and issue from header and footer
+	let headerFooterText = this.page.extractHeaderFooter(doc);
+	if (res = await this.extract.journal(headerFooterText)) result.container = res;
+	if (res = this.extract.volume(headerFooterText)) result.volume = res;
+	if (res = this.extract.year(headerFooterText)) result.year = res;
+	if (res = this.extract.issue(headerFooterText)) result.issue = res;
 	
-	res = this.extract.isbn(doc.text);
-	if (res) result.isbn = res;
+	if (res = this.extract.keywords(doc)) result.keywords = res;
 	
-	if (doc.pages.length) {
-		res = this.extract.arxiv(doc.pages[0].text);
-		if (res) result.arxiv = res;
-	}
+	result.pages = doc.totalPages.toString();
 	
-	res = this.extract.issn(doc.text);
-	if (res) result.issn = res;
-	
-	let text = this.page.extract_header_footer(doc);
-	
-	res = await this.extract.journal(text);
-	if (res) result.container = res;
-	
-	res = this.extract.volume(text);
-	if (res) result.volume = res;
-	
-	res = this.extract.year(text);
-	if (res) result.year = res;
-	
-	res = this.extract.issue(text);
-	if (res) result.issue = res;
-	
-	res = this.extract.keywords(doc);
-	if (res) result.keywords = res;
-	
-	result.type = 'journal-article';
-	
-	let pageInfo = this.page.getInfo(doc);
-	result.pages = pageInfo.pages;
-	
+	// Title extraction proceeds until the break line
 	let breakLine = null;
-	res = this.abstract.extract(doc);
-	if (res) {
+	
+	// Extract abstract, and get pageIndex and pageY that are used for break line
+	if (res = this.abstract.extract(doc)) {
 		result.abstract = res.text;
+		// Abstract position becomes a break line, because title is always above abstract
 		breakLine = {
 			pageIndex: res.pageIndex,
 			pageY: res.pageY
 		};
 	}
 	
-	
-	let bl = this.page.getTitleBreakLine(doc);
-	if (bl) {
+	// Try to find another break line
+	if (res = this.page.getTitleBreakLine(doc)) {
 		if (!breakLine) {
-			breakLine = bl;
+			breakLine = res;
 		}
+		// If already exists, compare which one is closer to the top
 		else if (
-			breakLine.pageIndex > bl.pageIndex ||
-			breakLine.pageIndex === bl.pageIndex && breakLine.pageY > bl.pageY
+			breakLine.pageIndex > res.pageIndex ||
+			breakLine.pageIndex === res.pageIndex && breakLine.pageY > res.pageY
 		) {
-			breakLine = bl;
+			breakLine = res;
 		}
 	}
 	
-	if (result.title) {
-		if (!result.authors.length) {
-			res = await this.title.getAuthorsByExistingTitle(doc, result.title);
-			if (res) {
-				result.authors = res;
-			}
-		}
+	// If title was found in PDF metadata, but authors aren't,
+	// try to locate that title and extract authors in the line before or after
+	if (result.title && !result.authors.length) {
+		if (res = await this.title.getAuthorsNearExistingTitle(doc, result.title)) result.authors = res;
 	}
-	else if (this.isLanguageAllowed(result.language)) {
+	
+	// If we still don't have a title, and the document language is supported
+	if (!result.title && this.isLanguageAllowed(result.language)) {
 		res = null;
 		
-		let pageIndex = pageInfo.firstPage;
+		// Get article first page (skip injected pages)
+		let firstPage = this.page.getFirstPage(doc);
+		
+		// Try to extract title and authors from the first article page (skip injected pages),
+		// but take into account the break line
+		let pageIndex = firstPage;
 		if (!breakLine || pageIndex <= breakLine.pageIndex) {
 			let y = null;
 			if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
-			res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
-			if (res) {
+			if (res = await this.title.getTitleAndAuthors(doc.pages[pageIndex], y)) {
 				result.title = res.title;
 				result.authors = res.authors;
 			}
 		}
 		
-		if (!res && pageInfo.firstPage === 0 && doc.pages.length >= 2) {
+		// Try to extract title and authors from the second page,
+		// but take into account the break line
+		if (!res && firstPage === 0 && doc.pages.length >= 2) {
 			pageIndex = 1;
 			if (!breakLine || pageIndex <= breakLine.pageIndex) {
 				let y = null;
 				if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
-				res = await this.title.getTitleAuthor(doc.pages[pageIndex], y);
-				if (res) {
+				if (res = await this.title.getTitleAndAuthors(doc.pages[pageIndex], y)) {
 					result.title = res.title;
 					result.authors = res.authors;
 				}
@@ -174,14 +159,15 @@ Recognizer.prototype.recognize = async function (json) {
 		}
 	}
 	
+	// Resolving DOI by title can be more precise, because DOI regexing
+	// from text can return DOIs that belong to other articles
 	if (!result.doi) {
-		let doi = await this.title.getDoi(doc, breakLine);
-		if (doi) result.doi = doi;
+		if (res = await this.title.findDoiByTitle(doc, breakLine)) result.doi = res;
 	}
 	
+	// Regex DOI
 	if (!result.doi) {
-		let doi = await this.extract.doi(doc);
-		if (doi) result.doi = doi;
+		if (res = await this.extract.doi(doc)) result.doi = res;
 	}
 	
 	return result;

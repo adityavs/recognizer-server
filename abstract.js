@@ -31,20 +31,82 @@ Abstract.prototype.extract = function (doc) {
 	return null;
 };
 
+/**
+ * Extract abstract paragraph which is above keywords.
+ * Sometimes abstract doesn't have any title before it (i.e. "Abstract" or "Summary"),
+ * and is just a single paragraph. But if there are keywords below it, almost certainly
+ * the paragraph is an abstract.
+ * @param page
+ * @return {*}
+ */
 Abstract.prototype.extractBeforeKeywords = function (page) {
-	for (let i = 1; i < page.lbs.length; i++) {
-		let lb = page.lbs[i];
-		if (/(keywords|key words|indexing terms)([: a-z]*),([ a-z]*)/.test(lb.lines[0].text.toLowerCase()) &&
-			lb.lines[0].text[0] === lb.lines[0].text[0].toUpperCase()) {
-			let lbPrev = page.lbs[i - 1];
+	
+	function haveIdenticalFontWords(line1, line2) {
+		for (let word1 of line1.words) {
+			if (word1.text.length < 2) continue;
+			for (let word2 of line2.words) {
+				if (word2.text.length < 2) continue;
+				if (word1.font === word2.font) {
+					return true
+				}
+			}
+		}
+		return false;
+	}
+	
+	// Group lines to line blocks. Similarly to lbs.js
+	// but much simpler, optimized for keywords.
+	// Lines must be grouped because keywords sometimes are wrapped
+	// Therefore we need to group them together, but separate from all other text too
+	let lbs = [];
+	
+	for (let line of page.lines) {
+		
+		// Line must have words
+		if (!line.words.length) continue;
+		
+		let lastLb = null;
+		let prevWord = null;
+		
+		// Try to get the line (and the last word) from the previous line block
+		if (lbs.length) {
+			lastLb = lbs.slice(-1)[0];
+			let prevLine = lastLb.lines.slice(-1)[0];
+			prevWord = prevLine.words.slice(-1)[0];
+		}
+		
+		// To group this line with the previous line there should be
+		// the same font and size words. And also the line
+		// shouldn't be a keywords line
+		if (
+			prevWord &&
+			!/(keywords|key words|indexing terms)([: a-z]*),([ a-z]*)/i.test(line.text) &&
+			haveIdenticalFontWords(lastLb.lines.slice(-1)[0], line) &&
+			line.yMin - prevWord.yMax < prevWord.fontSize
+		) {
+			lastLb.lines.push(line);
+		}
+		// Or just create a new line block
+		else {
+			lbs.push({
+				lines: [line]
+			});
+		}
+	}
+	
+	for (let i = 1; i < lbs.length; i++) {
+		let lb = lbs[i];
+		if (/(keywords|key words|indexing terms)([: a-z]*),([ a-z]*)/i.test(lb.lines[0].text) &&
+			utils.isUpper(lb.lines[0].text[0])) {
+			let lbPrev = lbs[i - 1];
 			let abstract = '';
 			for (let line of lbPrev.lines) {
 				abstract += line.text;
-				if (abstract.length && /[-\u2010]/.test(abstract[abstract.length - 1])) {
-					abstract = abstract.slice(0, abstract.length - 1);
+				if (abstract.length && /[-\u2010]$/.test(abstract)) {
+					abstract = abstract.slice(0, -1);
 				}
 				else {
-					if (!XRegExp('[\\p{Dash_Punctuation}]').test(abstract[abstract.length - 1])) {
+					if (!XRegExp('\\p{Dash_Punctuation}$').test(abstract)) {
 						abstract += ' ';
 					}
 				}
@@ -52,8 +114,8 @@ Abstract.prototype.extractBeforeKeywords = function (page) {
 			abstract = abstract.trim();
 			if (
 				abstract.length &&
-				abstract[0] === abstract[0].toUpperCase() &&
-				abstract[abstract.length - 1] === '.' &&
+				utils.isUpper(abstract[0]) &&
+				abstract.slice(-1)[0] === '.' &&
 				abstract.length > 200 && abstract.length < 3000
 			) {
 				return {yMin: lbPrev.lines[0].yMin, text: abstract};
@@ -63,6 +125,12 @@ Abstract.prototype.extractBeforeKeywords = function (page) {
 	return null;
 };
 
+/**
+ * Extract abstract when there is "Abstract" or "Summary" before it.
+ * Currently only one paragraph abstracts are supported.
+ * @param page
+ * @return {*}
+ */
 Abstract.prototype.extractSimple = function (page) {
 	
 	function getAbstractLines(lines, line_i) {
@@ -111,7 +179,7 @@ Abstract.prototype.extractSimple = function (page) {
 				if (/[-\u2010]/.test(text.slice(-1))) {
 					text = text.slice(0, -1);
 				}
-				else if (!XRegExp('[\\p{Dash_Punctuation}]').test(text.slice(-1))) {
+				else if (!XRegExp('\\p{Dash_Punctuation}$').test(text)) {
 					text += ' ';
 				}
 			}
@@ -141,19 +209,7 @@ Abstract.prototype.extractSimple = function (page) {
 		return null;
 	}
 	
-	function pageToLines(page) {
-		let lines = [];
-		for (let flow of page.flows) {
-			for (let block of flow.blocks) {
-				for (let line of block.lines) {
-					lines.push(line);
-				}
-			}
-		}
-		return lines;
-	}
-	
-	let lines = pageToLines(page);
+	let lines = page.lines;
 	
 	for (let line_i = 1; line_i < lines.length; line_i++) {
 		let line = lines[line_i];
@@ -174,7 +230,7 @@ Abstract.prototype.extractSimple = function (page) {
 			text = text.slice(j);
 			if (!text.length) break;
 			if (text[0] !== text[0].toUpperCase()) break;
-			if(text.slice(-1)!=='.') break;
+			if (text.slice(-1) !== '.') break;
 			return {yMin: line.yMin, text};
 		}
 	}
@@ -204,7 +260,7 @@ Abstract.prototype.extractStructured = function (page) {
 		let text2 = text.toLowerCase();
 		
 		for (let name in names) {
-			if (text2.indexOf(name) === 0 && text[0].toUpperCase() === text[0]) {
+			if (text2.indexOf(name) === 0 && utils.isUpper(text[0])) {
 				return names[name];
 			}
 		}
@@ -223,7 +279,7 @@ Abstract.prototype.extractStructured = function (page) {
 			
 			if (
 				Math.abs(anchorWord.xMin - line.words[0].xMin) > 2.0 ||
-				Math.abs(anchorWord.fontsize - line.words[0].fontsize) > 1.0 ||
+				Math.abs(anchorWord.fontSize - line.words[0].fontSize) > 1.0 ||
 				anchorWord.font !== line.words[0].font
 			) continue;
 			
@@ -241,7 +297,7 @@ Abstract.prototype.extractStructured = function (page) {
 			if (type === 3) break;
 		}
 		
-		if (foundTypes.length < 3 || foundTypes[foundTypes.length - 1] !== 3) return null;
+		if (foundTypes.length < 3 || foundTypes.slice(-1)[0] !== 3) return null;
 		return sectionLines;
 	}
 	
@@ -251,7 +307,7 @@ Abstract.prototype.extractStructured = function (page) {
 		for (; line_i < lines.length; line_i++) {
 			let line = lines[line_i];
 			
-			if (lines[line_i].xMin - lines[line_i - 1].xMax > lines[line_i - 1].words[0].fontsize * 2) break;
+			if (lines[line_i].xMin - lines[line_i - 1].xMax > lines[line_i - 1].words[0].fontSize * 2) break;
 			
 			if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(lines[line_i].text)) break;
 			
@@ -263,9 +319,9 @@ Abstract.prototype.extractStructured = function (page) {
 				}
 				
 				let prevDiff = Math.abs(lines[line_i - 3].xMax - lines[line_i - 2].xMax);
-				let curDiff = lines[line_i - 2].xMax - lines[line_i-1].xMax;
+				let curDiff = lines[line_i - 2].xMax - lines[line_i - 1].xMax;
 				
-				if (/[\)\.]/.test(lines[line_i-1].text.slice(-1)) &&
+				if (/[\)\.]/.test(lines[line_i - 1].text.slice(-1)) &&
 					prevDiff < 1.0 &&
 					curDiff > 2.0
 				) {
@@ -290,7 +346,7 @@ Abstract.prototype.extractStructured = function (page) {
 					if (/[-\u2010]/.test(text.slice(-1))) {
 						text = text.slice(0, -1);
 					}
-					else if (!XRegExp('[\\p{Dash_Punctuation}]').test(text.slice(-1))) {
+					else if (!XRegExp('\\p{Dash_Punctuation}$').test(text)) {
 						text += ' ';
 					}
 				}
@@ -300,19 +356,7 @@ Abstract.prototype.extractStructured = function (page) {
 		return text;
 	}
 	
-	function pageToLines(page) {
-		let lines = [];
-		for (let flow of page.flows) {
-			for (let block of flow.blocks) {
-				for (let line of block.lines) {
-					lines.push(line);
-				}
-			}
-		}
-		return lines;
-	}
-	
-	let lines = pageToLines(page);
+	let lines = page.lines;
 	
 	for (let line_i = 0; line_i < lines.length; line_i++) {
 		let line = lines[line_i];
@@ -329,7 +373,7 @@ Abstract.prototype.extractStructured = function (page) {
 				else {
 					let j = getLastSectionBreak(lines, lns[i]);
 					sections.push({
-						lines: lines.slice(lns[i], j+1)
+						lines: lines.slice(lns[i], j + 1)
 					});
 				}
 			}

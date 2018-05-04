@@ -1,20 +1,11 @@
 const sqlite = require('sqlite');
 const XXHash = require('xxhash');
 const XRegExp = require('xregexp');
-const Int64LE = require("int64-buffer").Int64LE;
+const Int64LE = require('int64-buffer').Int64LE;
+const utils = require('./utils');
 
 const reg1 = XRegExp('[\\p{Letter}]');
 const reg2 = XRegExp('[\\p{Letter}\\p{Dash_Punctuation}’\']');
-
-function normalize(text) {
-	let rx = XRegExp('[^\\pL]', 'g');
-	text = XRegExp.replace(text, rx, '');
-	text = text.normalize('NFKD');
-	text = XRegExp.replace(text, rx, '');
-	text = text.toLowerCase();
-	
-	return text;
-}
 
 const Authors = function (options) {
 	this.db = options.db;
@@ -22,6 +13,10 @@ const Authors = function (options) {
 
 module.exports = Authors;
 
+/**
+ * Convert line to array of [{c: character, word: reference to word}]
+ * because it's more convenient when all characters are in a flat array
+ */
 Authors.prototype.lineToUstr = function (line) {
 	let ustr = [];
 	for (let word of line.words) {
@@ -38,6 +33,9 @@ Authors.prototype.isConjunction = function (name) {
 	return list.includes(name.toLowerCase());
 };
 
+/**
+ * Degrees and other words that must be skipped if encountered in authors line
+ */
 Authors.prototype.isSkipWord = function (name) {
 	let list = [
 		'by',
@@ -68,12 +66,15 @@ Authors.prototype.isSkipWord = function (name) {
 	return list.includes(name.toLowerCase());
 };
 
+/**
+ * Walks through all characters in the line and tries to parse authors and their names
+ */
 Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 	let authors = [];
 	let names = [];
 	let name = '';
 	let font = null;
-	let fontsize = 0;
+	let fontSize = 0;
 	let baseline = 0;
 	
 	let ref = 0;
@@ -84,8 +85,8 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		
 		let uchar = ustr[i];
 		
-		// Temporary fix for pdftotext incorrectly decomposed characters with an accent
-		// i.e. "Go´mez". All accents are ignored
+		// Ugly fix for pdftotext incorrectly decomposed characters with an accent
+		// i.e. "Go´mez" becomes "Gomez", all accents are just ignored
 		if (['´', '^', 'ˆ', '¨', '`', '˜', '∼', '¸'].includes(uchar.c)) continue;
 		
 		function fn1() {
@@ -93,12 +94,17 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 			if (uchar.c === '~') return 1;
 			
 			if (!name.length) {
-				if ([' ', '.'].includes(uchar.c)) { // Skip all spaces before name
-					return 1;
-				}
+				// Skip those characters if they are before name
+				if ([' ', '.'].includes(uchar.c)) return 1;
 				
-				if (font !== null && uchar.word.font !== font || fontsize > 1 && Math.abs(uchar.word.fontsize - fontsize) > 1.0 &&
-					Math.abs(uchar.word.baseline - baseline) > 1.0) {
+				if (font !== null && uchar.word.font !== font) return 2;
+				
+				// If
+				if (
+					fontSize > 1 &&
+					Math.abs(uchar.word.fontSize - fontSize) > 1.0 &&
+					Math.abs(uchar.word.baseline - baseline) > 1.0
+				) {
 					return 2;
 				}
 				
@@ -107,7 +113,7 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					
 					if (!names.length) {
 						font = uchar.word.font;
-						fontsize = uchar.word.fontsize;
+						fontSize = uchar.word.fontSize;
 						baseline = uchar.word.baseline;
 					}
 				}
@@ -121,7 +127,12 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					ref = 1;
 					return 2;
 				}
-				else if (font !== null && uchar.word.font !== font || Math.abs(uchar.word.fontsize - fontsize) > 1.0 && Math.abs(uchar.word.baseline - baseline) > 1.0) {
+				else if (font !== null && uchar.word.font !== font) {
+					return 2;
+				}
+				else if (
+					Math.abs(uchar.word.fontSize - fontSize) > 1.0 &&
+					Math.abs(uchar.word.baseline - baseline) > 1.0) {
 					return 2;
 				}
 				else if (reg2.test(uchar.c) && !/[Ææ]/.test(uchar.c)) {
@@ -135,12 +146,11 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					}
 					
 					if (that.isSkipWord(name)) {
-						//names = [];
 						name = '';
 						return 2;
 					}
 					
-					if (name[0].toUpperCase() !== name[0]) { // if name doesn't start with upper case letter. todo: what about chinese?
+					if (!utils.isUpper(name[0])) { // if name doesn't start with an upper case letter
 						name = '';
 						return 3;
 					}
@@ -148,31 +158,28 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 					names.push(name.slice());
 					name = '';
 					
-					if (names.length >= 4) {
-						return 2;
-					}
+					if (names.length >= 4) return 2;
+					
 				}
 				else {
 					return 2;
 				}
 			}
+			
+			return 4;
 		}
 		
 		let r = fn1();
 		
+		// Ignoring some characters like spaces
 		if (r === 1) continue;
 		if (r === 3) break;
-		if (r !== 2 && i < ustr.length - 1) continue;
+		if (r === 4 && i < ustr.length - 1) continue;
+		// if(r === 2)
 		
+		if (this.isConjunction(name)) name = '';
 		
-		if (this.isConjunction(name)) {
-			name = '';
-		}
-		
-		if (this.isSkipWord(name)) {
-			name = '';
-			//names = [];
-		}
+		if (this.isSkipWord(name)) name = '';
 		
 		if (name.length) {
 			names.push(name.slice());
@@ -180,12 +187,11 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 		}
 		
 		if (names.length >= 2 && names.length <= 4) {
-			if (names[names.length - 1].length < 2) return 0;
+			if (names.slice(-1)[0].length < 2) return 0;
 			authors.push({ref, names: names.slice()});
 			ref = 0;
 		}
 		else if (names.length !== 0) {
-			//return 0;
 			break;
 		}
 		
@@ -195,7 +201,6 @@ Authors.prototype.extractAuthorsFromUstr = function (ustr) {
 	}
 	
 	return authors;
-	
 };
 
 Authors.prototype.getWordType = async function (word) {
@@ -218,9 +223,130 @@ Authors.prototype.getWordType = async function (word) {
 	else return 0;
 };
 
+/**
+ * Extracts authors from PDF file metadata,
+ * when author names start with the first name and finish with the last name
+ */
+Authors.prototype.extractFromStringType1 = async function (str) {
+	let authors = [];
+	let names = [];
+	let name = '';
+	
+	let that = this;
+	
+	for (let i = 0; i < str.length; i++) {
+		
+		let c = str[i];
+		
+		function fn1() {
+			
+			if (!name.length) {
+				if ([' ', '.'].includes(c)) { // Skip all spaces before name
+					return 1;
+				}
+				
+				if (reg1.test(c) && !/[Ææ]/.test(c)) {
+					name += c;
+				}
+				else { // If symbol is not a letter
+					return 2;
+				}
+				
+			}
+			else {
+				if (reg2.test(c) && !/[Ææ]/.test(c)) {
+					name += c;
+				}
+				else if ([' ', '.'].includes(c)) { // if names separator
+					
+					if (that.isConjunction(name)) {
+						name = '';
+						return 2;
+					}
+					
+					if (that.isSkipWord(name)) {
+						name = '';
+						return 2;
+					}
+					
+					if (!utils.isUpper(name[0])) { // if name doesn't start with an upper case letter
+						name = '';
+						return 2;
+					}
+					
+					names.push(name.slice());
+					name = '';
+					
+					if (names.length >= 4) return 2;
+				}
+				else {
+					return 2;
+				}
+			}
+			
+			return 4;
+		}
+		
+		let r = fn1();
+		
+		if (r === 1) continue;
+		if (r === 4 && i < str.length - 1) continue;
+		
+		if (this.isConjunction(name)) name = '';
+		
+		if (this.isSkipWord(name)) name = '';
+		
+		
+		if (name.length) {
+			names.push(name.slice());
+			name = '';
+		}
+		
+		if (names.length >= 2 && names.length <= 4) {
+			if (names.slice(-1)[0].length < 2) return 0;
+			authors.push({names: names.slice()});
+		}
+		else if (names.length !== 0) {
+			break;
+		}
+		
+		name = '';
+		names = [];
+	}
+	
+	let result = [];
+	let found = false;
+	for (let author of authors) {
+		if (!found) {
+			for (let name of author.names) {
+				if (name.length >= 3) {
+					let type = await this.getWordType(name);
+					if (type > 0) {
+						found = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		let firstName;
+		let lastName;
+		lastName = author.names.pop();
+		firstName = author.names.join(' ');
+		
+		result.push({firstName, lastName});
+	}
+	
+	if (found) return result;
+	return null;
+};
+
+/**
+ * Extracts authors from PDF file metadata,
+ * when last name goes first and is separated with comma
+ */
 Authors.prototype.extractFromStringType2 = async function (str) {
-	let parts = str.split(/[,;]|and|und/);
-	parts = parts.map(str => str.trim());
+	let parts = str.split(/[,;]|and|und/).map(str => str.trim());
 	
 	let authors = [];
 	
@@ -270,130 +396,13 @@ Authors.prototype.extractFromStringType2 = async function (str) {
 	return null;
 };
 
-Authors.prototype.extractFromStringType1 = async function (str) {
-	let authors = [];
-	let names = [];
-	let name = '';
-	
-	let that = this;
-	
-	for (let i = 0; i < str.length; i++) {
-		
-		let c = str[i];
-		
-		function fn1() {
-			
-			if (!name.length) {
-				if ([' ', '.'].includes(c)) { // Skip all spaces before name
-					return 1;
-				}
-				
-				if (reg1.test(c) && !/[Ææ]/.test(c)) {
-					name += c;
-				}
-				else { // If symbol is not a letter
-					return 2;
-				}
-				
-			}
-			else {
-				if (reg2.test(c) && !/[Ææ]/.test(c)) {
-					name += c;
-				}
-				else if ([' ', '.'].includes(c)) { // if names separator
-					
-					if (that.isConjunction(name)) {
-						name = '';
-						return 2;
-					}
-					
-					if (that.isSkipWord(name)) {
-						//names = [];
-						name = '';
-						return 2;
-					}
-					
-					if (name[0].toUpperCase() !== name[0]) { // if name doesn't start with upper case letter. todo: what about chinese?
-						name = '';
-						return 2;
-					}
-					
-					names.push(name.slice());
-					name = '';
-					
-					if (names.length >= 4) {
-						return 2;
-					}
-				}
-				else {
-					return 2;
-				}
-			}
-		}
-		
-		let r = fn1();
-		
-		if (r === 1) continue;
-		if (r !== 2 && i < str.length - 1) continue;
-		
-		
-		if (this.isConjunction(name)) {
-			name = '';
-		}
-		
-		if (this.isSkipWord(name)) {
-			name = '';
-			//names = [];
-		}
-		
-		if (name.length) {
-			names.push(name.slice());
-			name = '';
-		}
-		
-		if (names.length >= 2 && names.length <= 4) {
-			if (names[names.length - 1].length < 2) return 0;
-			authors.push({names: names.slice()});
-		}
-		else if (names.length !== 0) {
-			//return 0;
-			break;
-		}
-		
-		name = '';
-		names = [];
-	}
-	
-	let result = [];
-	let found = false;
-	for (let author of authors) {
-		if (!found) {
-			for (let name of author.names) {
-				if (name.length >= 3) {
-					let type = await this.getWordType(name);
-					if (type > 0) {
-						found = true;
-						break;
-					}
-				}
-			}
-		}
-		
-		let firstName;
-		let lastName;
-		lastName = author.names.pop();
-		firstName = author.names.join(' ');
-		
-		result.push({firstName, lastName});
-	}
-	
-	if (found) return result;
-	return null;
+Authors.prototype.isWordBlacklisted = function (word) {
+	let list = ['university', 'school', 'public', 'institute'];
+	return list.includes(word.toLowerCase());
 };
 
 Authors.prototype.getAuthors = async function (lb) {
 	let confidence = 0;
-	
 	let result = [];
 	
 	for (let line of lb.lines) {
@@ -412,7 +421,12 @@ Authors.prototype.getAuthors = async function (lb) {
 			let negative = 0;
 			let positive = 0;
 			let lastNegativeValue = 0;
+			let stop = false;
 			for (let name of author.names) {
+				if (this.isWordBlacklisted(name)) {
+					stop = true;
+					break;
+				}
 				if (name.length < 2) continue;
 				
 				let type = await this.getWordType(name);
@@ -423,8 +437,9 @@ Authors.prototype.getAuthors = async function (lb) {
 				else if (type > 0) {
 					positive++;
 				}
-				// console.log('nnn',name, type);
 			}
+			
+			if (stop) break;
 			
 			let c = 0;
 			
@@ -453,8 +468,6 @@ Authors.prototype.getAuthors = async function (lb) {
 			result.push({firstName, lastName});
 			
 		}
-		
-		// console.log(authors);
 	}
 	
 	return {
@@ -473,6 +486,10 @@ Authors.prototype.hasExistingAuthor = function (authors1, authors2) {
 	return false;
 };
 
+/**
+ * Extract more authors by searching for line blocks,
+ * that are in the same horizontal line, or have the same font
+ */
 Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 	
 	let a1 = [];
@@ -484,9 +501,6 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 	for (let i = lbi; i < lbs.length; i++) {
 		let lb = lbs[i];
 		if (Math.abs(first_lb.yMin - lb.yMin) < 3.0) {
-//      printf("found another author block:\n");
-//      print_block(lb);
-//      printf("\n\n");
 			let a = await this.getAuthors(lb);
 			if (a) {
 				if (!this.hasExistingAuthor(a1, a.authors)) {
@@ -503,10 +517,7 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 	for (let i = lbi; i < lbs.length; i++) {
 		let lb = lbs[i];
 		if (first_lb.lines[0].words[0].font === lb.lines[0].words[0].font &&
-			first_lb.lines[0].words[0].fontsize === lb.lines[0].words[0].fontsize) {
-//      printf("found another author block:\n");
-//      print_block(lb);
-//      printf("\n\n");
+			first_lb.lines[0].words[0].fontSize === lb.lines[0].words[0].fontSize) {
 			let a = await this.getAuthors(lb);
 			if (a && a.conf === 2) {
 				if (!this.hasExistingAuthor(a2, a.authors)) {
@@ -525,31 +536,32 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 	else {
 		return a2;
 	}
-	
-	//printf("more authors: %s\n", a2_str);
 };
 
-Authors.prototype.extractAuthors = async function (lbs, i) {
+/**
+ * Tries to extract authors above and below given title line block
+ */
+Authors.prototype.extractAuthorsNearTitle = async function (lbs, lbi) {
 	let alb;
 	let slb;
 	let tlb;
 	
-	let a_i = 0;
+	let albi = 0;
 	
 	let a1 = {conf: 0};
 	let a2 = {conf: 0};
 	let a3 = {conf: 0};
 	
-	tlb = lbs[i];
+	tlb = lbs[lbi];
 	
-	if (i + 1 < lbs.length) {
-		alb = lbs[i + 1];
+	if (lbi + 1 < lbs.length) {
+		alb = lbs[lbi + 1];
 		a1 = await this.getAuthors(alb);
 	}
 	
-	if (i + 2 < lbs.length) {
-		alb = lbs[i + 2];
-		slb = lbs[i + 1];
+	if (lbi + 2 < lbs.length) {
+		alb = lbs[lbi + 2];
+		slb = lbs[lbi + 1];
 		
 		let total_chars = 0;
 		for (let lines of slb.lines) {
@@ -563,8 +575,8 @@ Authors.prototype.extractAuthors = async function (lbs, i) {
 		}
 	}
 	
-	if (i > 0) {
-		alb = lbs[i - 1];
+	if (lbi > 0) {
+		alb = lbs[lbi - 1];
 		if (tlb.maxFontSize >= alb.maxFontSize && tlb.yMin > alb.yMax) {
 			a3 = await this.getAuthors(alb);
 		}
@@ -574,22 +586,20 @@ Authors.prototype.extractAuthors = async function (lbs, i) {
 	
 	if (a1.conf > 0 && a1.conf >= a2.conf && a1.conf >= a3.conf) {
 		authors = a1.authors;
-		a_i = i + 1;
+		albi = lbi + 1;
 	}
 	else if (a2.conf > 0 && a2.conf >= a1.conf && a2.conf >= a3.conf) {
 		authors = a2.authors;
-		a_i = i + 2;
+		albi = lbi + 2;
 	}
 	else if (a3.conf > 0 && a3.conf >= a1.conf && a3.conf >= a2.conf) {
 		authors = a3.authors;
-		a_i = i - 1;
+		albi = lbi - 1;
 	}
 	
 	if (authors.length) {
-		let a = await this.extractAdditionalAuthors(lbs, a_i);
-		if (a) {
-			authors = a;
-		}
+		let a = await this.extractAdditionalAuthors(lbs, albi);
+		if (a) authors = a;
 	}
 	
 	return authors;

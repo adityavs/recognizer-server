@@ -32,72 +32,49 @@ const Page = function () {
 
 module.exports = Page;
 
-Page.prototype.getInfo = function (doc) {
+/**
+ * Tries to return the first page index (skips injected pages)
+ * @param doc
+ * @return {number}
+ */
+Page.prototype.getFirstPage = function (doc) {
 	let firstPage = 0;
 	let res;
-	res = this.getFirstPageByWidth(doc);
-	if (res) {
+	if (res = this.getFirstPageByWidth(doc)) {
 		firstPage = res;
 	}
-	else {
-		res = this.getFirstPageByFonts(doc);
-		if (res) {
-			firstPage = res;
-		}
+	else if (res = this.getFirstPageByFonts(doc)) {
+		firstPage = res;
 	}
 	
-	let first = 1;
-	let last = doc.totalPages;
-	
-	// res = this.extractPages(doc);
-	//
-	// if (res) {
-	// 	let start = res.start;
-	// 	first = res.first;
-	// 	if (first === 1) {
-	// 		firstPage = start;
-	// 	}
-	// 	else if (first === 2 && start >= 1) {
-	// 		firstPage = start - 1;
-	// 		first = 1;
-	// 	}
-	//
-	// 	last = first + doc.totalPages - firstPage - 1;
-	//
-	// 	log.debug("pages:", doc.totalPages, start, first, last);
-	// }
-	
-	let pages;
-	
-	if (!pages) {
-		if (first > 1) {
-			pages = first + '-' + last;
-		}
-		else {
-			pages = last.toString();
-		}
-	}
-	
-	return {
-		firstPage,
-		pages
-	};
+	return firstPage;
 };
 
+/**
+ * Returns the first page index by comparing page fonts,
+ * because some PDFs have additionally injected pages from publisher.
+ * Injected pages often have different fonts than the rest
+ * @param doc
+ * @return {number}
+ */
 Page.prototype.getFirstPageByFonts = function (doc) {
-	let start_page = 0;
+	let startPage = 0;
 	
+	// At minimum 3 pages are necessary
 	if (doc.pages.length < 3) return 0;
 	
-	for (let page_i = 0; page_i + 2 < doc.pages.length; page_i++) {
-		let page1 = doc.pages[page_i];
+	// Loop until the third page from the end
+	for (let pageIndex = 0; pageIndex + 2 < doc.pages.length; pageIndex++) {
+		let page1 = doc.pages[pageIndex];
 		let missing = 0;
 		let total = 0;
 		
+		// Loop through all fonts in the first page
 		for (let font1 in page1.fDist) {
 			let found = 0;
 			
-			for (let page2_i = page_i + 1; page2_i < doc.pages.length; page2_i++) {
+			// Loop from the next page to the second page from the end
+			for (let page2_i = pageIndex + 1; page2_i < doc.pages.length; page2_i++) {
 				let page2 = doc.pages[page2_i];
 				for (let font2 in page2.fDist) {
 					total++;
@@ -114,24 +91,36 @@ Page.prototype.getFirstPageByFonts = function (doc) {
 			}
 		}
 		
+		// If all fonts from one page are missing in the next two pages
+		// then the page is injected
 		if (missing === Object.keys(page1.fDist).length && total >= 2) {
-			start_page = page_i + 1;
+			startPage = pageIndex + 1;
 		}
 	}
 	
-	return start_page;
+	return startPage;
 };
 
+/**
+ * Returns the first page index by comparing page widths,
+ * because some PDFs have additionally injected pages from publisher.
+ * Injected pages often have a little bit different width than the rest
+ * @param doc
+ * @return {number}
+ */
 Page.prototype.getFirstPageByWidth = function (doc) {
-	let first_page = 0;
+	let firstPage = 0;
 	
+	// If document has only one page just return (0)
 	if (doc.pages.length <= 1) return 0;
 	
+	// If document has two pages but their widths are different, return only the second page (1)
 	if (doc.pages.length === 2 &&
 		doc.pages[0].width !== doc.pages[1].width) {
 		return 1;
 	}
 	
+	// If document has three pages but only the second and the third have equal width, return the second (1)
 	if (doc.pages.length === 3 &&
 		doc.pages[0].width !== doc.pages[1].width &&
 		doc.pages[1].width === doc.pages[2].width) {
@@ -147,174 +136,84 @@ Page.prototype.getFirstPageByWidth = function (doc) {
 	
 	if (doc.pages.length < 4) return 0;
 	
+	// Tries to find a sequence of pages where one page has a different width
+	// than the next two pages
 	for (let i = 0; i < doc.pages.length - 3; i++) {
 		if (doc.pages[i].width !== doc.pages[i + 1].width &&
 			doc.pages[i + 1].width === doc.pages[i + 2].width) {
-			first_page = i + 1;
+			firstPage = i + 1;
 		}
 	}
 	
-	return first_page;
+	return firstPage;
 };
 
-Page.prototype.extractPages = function (doc) {
-	let start = 0;
-	let first = 0;
-	for (let page_i = 0; page_i + 2 < doc.pages.length; page_i++) {
-		let page = doc.pages[page_i];
-		
-		for (let flow_i = 0; flow_i < page.flows.length; flow_i++) {
-			let flow = page.flows[flow_i];
-			
-			for (let block_i = 0; block_i < flow.blocks.length; block_i++) {
-				let block = flow.blocks[block_i];
-				
-				for (let line_i = 0; line_i < block.lines.length; line_i++) {
-					let line = block.lines[line_i];
-					if (line.yMax < 100 || line.yMin > page.height - 100) {
-						
-						for (let word_i = 0; word_i < line.words.length; word_i++) {
-							let word = line.words[word_i];
-							
-							if (
-								!(Math.abs(page.contentLeft - word.xMin) < 5.0 ||
-									Math.abs(page.contentRight - word.xMax) < 5.0 ||
-									Math.abs((page.contentRight - page.contentLeft) / 2 -
-										(word.xMin + (word.xMax - word.xMin) / 2)) < 5.0))
-								continue;
-							
-							let page2 = doc.pages[page_i + 2];
-							
-							for (let flow2_i = 0; flow2_i < page2.flows.length; flow2_i++) {
-								let flow2 = page2.flows[flow2_i];
-								
-								for (let block2_i = 0; block2_i < flow2.blocks.length; block2_i++) {
-									let block2 = flow2.blocks[block2_i];
-									
-									for (let line2_i = 0; line2_i < block2.lines.length; line2_i++) {
-										let line2 = block2.lines[line2_i];
-										if (line2.yMax < 100 || line2.yMin > page2.height - 100) {
-											
-											for (let word2_i = 0; word2_i < line2.words.length; word2_i++) {
-												let word2 = line2.words[word2_i];
-												
-												if (
-													Math.abs(word.yMin - word2.yMin) < 1.0 &&
-													Math.abs(word.xMin - word2.xMin) < 15.0) {
-													//log_debug("detected: %s %s\n", word->text, word2->text);
-													
-													let w1;
-													let w2;
-													
-													let n;
-													
-													n = 0;
-													
-													let skip = 0;
-													
-													for (let i = 0; i < word.text.length && n < 30; i++) {
-														if (word.text[i] < '0' || word.text[i] > '9') {
-															skip = 1;
-															break;
-														}
-													}
-													
-													n = 0;
-													for (let i = 0; i < word2.text.length && n < 30; i++) {
-														if (word2.text[i] < '0' || word2.text[i] > '9') {
-															skip = 1;
-															break;
-														}
-													}
-													
-													if (skip) continue;
-													
-													w1 = word.text;
-													w2 = word2.text;
-													
-													console.log(w1, w2);
-													
-													let nr1 = parseInt(w1);
-													let nr2 = parseInt(w2);
-//                        log_debug("found numbers: %d %d\n", nr1, nr2);
-													if (nr1 > 0 && nr2 === nr1 + 2) {
-														//console.log("found numbers:", nr1, nr2);
-														start = page_i;
-														first = nr1;
-														return {
-															start, first
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	return null;
-};
-
-Page.prototype.extract_header_footer = function (doc) {
+/**
+ * Extracts header and footer text by finding
+ * repeated text in different pages but at the same position
+ * @param doc
+ * @return {string}
+ */
+Page.prototype.extractHeaderFooter = function (doc) {
 	let text = '';
 	
 	for (let page_i = 0; page_i + 1 < doc.pages.length; page_i++) {
 		let page = doc.pages[page_i];
 		
-		for (let flow_i = 0; flow_i < page.flows.length; flow_i++) {
-			let flow = page.flows[flow_i];
+		for (let block_i = 0; block_i < page.lines.length; block_i++) {
+			let block = page.lines[block_i];
 			
-			for (let block_i = 0; block_i < flow.blocks.length; block_i++) {
-				let block = flow.blocks[block_i];
+			if (block.yMin < 5 || block.yMax > page.height - 5) continue;
+			if (block.text.toLowerCase().includes('download') || block.text.includes('http')) continue;
+			// Only injected text can be at the top or bottom of the page
+			// console.log('b1', block.text, block.xMin);
+			
+			for (let page2_i = page_i + 1; page2_i < doc.pages.length && page2_i <= page_i + 2; page2_i++) {
+				let page2 = doc.pages[page2_i];
 				
-				// Only injected text can be at the top or bottom of the page
-				if (block.yMin < 15 || block.yMax > page.height - 15) continue;
-				
-				for (let page2_i = page_i + 1; page2_i < doc.pages.length && page2_i <= page_i + 2; page2_i++) {
-					let page2 = doc.pages[page2_i];
+				for (let block2_i = 0; block2_i < page2.lines.length; block2_i++) {
+					let block2 = page2.lines[block2_i];
+					// console.log('b2', block2.text, block2.xMin);
 					
-					for (let flow2_i = 0; flow2_i < page2.flows.length; flow2_i++) {
-						let flow2 = page2.flows[flow2_i];
+					let width1 = block.xMax - block.xMin;
+					let height1 = block.yMax - block.yMin;
+					
+					let width2 = block2.xMax - block2.xMin;
+					let height2 = block2.yMax - block2.yMin;
+					
+					if (
+						Math.abs(block.xMin - block2.xMin) < 10 &&
+						Math.abs(block.yMin - block2.yMin) < 10 &&
+						Math.abs(width1 - width2) < 10 &&
+						Math.abs(height1 - height2) < 10) {
 						
-						for (let block2_i = 0; block2_i < flow2.blocks.length; block2_i++) {
-							let block2 = flow2.blocks[block2_i];
-							
-							let width1 = block.xMax - block.xMin;
-							let height1 = block.yMax - block.yMin;
-							
-							let width2 = block2.xMax - block2.xMin;
-							let height2 = block2.yMax - block2.yMin;
-							
-							if (
-								Math.abs(block.xMin - block2.xMin) < 10 &&
-								Math.abs(block.yMin - block2.yMin) < 10 &&
-								Math.abs(width1 - width2) < 10 &&
-								Math.abs(height1 - height2) < 10) {
-								
-								let data1 = block.text;
-								let data2 = block2.text;
-								
-								if (data1 === data2) {
-									if (text.indexOf(data1) < 0) {
-										text += data1;
-									}
-								}
+						let data1 = block.text;
+						let data2 = block2.text;
+						
+						if (data1 === data2) {
+							if (text.indexOf(data1) < 0) {
+								text += data1 + '\n';
 							}
 						}
 					}
 				}
+				
 			}
 		}
+		
 	}
 	return text;
 };
 
+/**
+ * Returns a page index and position after which no more title extraction or recognition should be proceeded.
+ * I.e. title should never be below abstract, keywords, byline or table of contents
+ * Otherwise there is an increase in recognition time (because more potential titles have to be evaluated),
+ * and the results are more likely to be false positives.
+ *
+ * @param doc
+ * @return {pageIndex, pageY}
+ */
 Page.prototype.getTitleBreakLine = function (doc) {
 	let breakLine = null;
 	
@@ -328,7 +227,7 @@ Page.prototype.getTitleBreakLine = function (doc) {
 				text = text.toLowerCase();
 				if (text === 'by' || text.indexOf('by ') === 0) {
 					breakLine = {
-						pageIndex: pageIndex,
+						pageIndex,
 						pageY: line.yMin
 					};
 					return;
@@ -340,59 +239,70 @@ Page.prototype.getTitleBreakLine = function (doc) {
 	(function () {
 		for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
 			let page = doc.pages[pageIndex];
-			for (let flow of page.flows) {
-				for (let block of flow.blocks) {
-					for (let line of block.lines) {
-						if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(line.text)) {
-							if (!breakLine) {
-								breakLine = {
-									pageIndex: pageIndex,
-									pageY: line.yMin
-								};
-							}
-							else if (
-								breakLine.pageIndex > pageIndex ||
-								breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
-								breakLine.pageIndex = pageIndex;
-								breakLine.pageY = line.yMin;
-							}
-							return;
-						}
-						
-						if (utils.isBreakSection(line.text)) {
-							if (!breakLine) {
-								breakLine = {
-									pageIndex: pageIndex,
-									pageY: line.yMin
-								};
-							}
-							else if (
-								breakLine.pageIndex > pageIndex ||
-								breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
-								breakLine.pageIndex = pageIndex;
-								breakLine.pageY = line.yMin;
-							}
-							return;
-						}
+			
+			for (let line of page.lines) {
+				if (/^(Keyword|KEYWORD|Key Word|Key word|Indexing Terms)/.test(line.text)) {
+					if (!breakLine) {
+						breakLine = {
+							pageIndex,
+							pageY: line.yMin
+						};
 					}
+					else if (
+						breakLine.pageIndex > pageIndex ||
+						breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
+						breakLine.pageIndex = pageIndex;
+						breakLine.pageY = line.yMin;
+					}
+					return;
+				}
+				
+				if (utils.isBreakSection(line.text)) {
+					if (!breakLine) {
+						breakLine = {
+							pageIndex,
+							pageY: line.yMin
+						};
+					}
+					else if (
+						breakLine.pageIndex > pageIndex ||
+						breakLine.pageIndex === pageIndex && breakLine.pageY > line.yMin) {
+						breakLine.pageIndex = pageIndex;
+						breakLine.pageY = line.yMin;
+					}
+					return;
 				}
 			}
+			
 		}
 	})();
 	
 	return breakLine;
 };
 
+/**
+ * Detect document language by analyzing language in multiple pages.
+ * Journal articles can have an injected page which can distort
+ * language detection results, or there can be an abstract
+ * written in English while all other text is in a different language.
+ * The function should overcome this by comparing results from different pages.
+ * @param doc
+ * @return {Promise<*>}
+ */
 Page.prototype.detectLanguage = async function (doc) {
 	let lgs = {};
 	for (let page of doc.pages) {
 		let result = await utils.detectLanguage(page.text);
 		if (!result) continue;
 		
-		let percent = result.textBytes * 100 / utils.byteLength(page.text);
+		// Gets byte length of UTF-8 page.text and calculates how many percent of the page is text bytes
+		let percent = result.textBytes * 100 / Buffer.from(page.text).length;
 		
+		// At least 30% of the page must be text bytes and at least 50%
+		// of the text must be in one language (it must dominate page)
 		if (result.languages[0].percent < 50 || percent < 30) continue;
 		
+		// Calculate how many times each language were detected
 		let lg = result.languages[0].code;
 		if (!lgs[lg]) {
 			lgs[lg] = 1;
@@ -400,12 +310,12 @@ Page.prototype.detectLanguage = async function (doc) {
 		else {
 			lgs[lg]++;
 		}
-		
 	}
 	
 	let lg = null;
 	let lgCount = 0;
 	
+	// Find the most popular language and in how many pages it was detected
 	for (let key in lgs) {
 		let value = lgs[key];
 		if (lgCount < value) {
@@ -414,9 +324,12 @@ Page.prototype.detectLanguage = async function (doc) {
 		}
 	}
 	
+	// If document has only one page, and language was detected, just return it
+	// If document has two or more pages, the same language must be detected in at least two pages
 	if (
-		doc.pages.length === 1 && lgCount === 1 ||
-		doc.pages.length >= 2 && lgCount >= 2) return lg;
+		doc.pages.length === 1 && lgCount ||
+		doc.pages.length >= 2 && lgCount >= 2
+	) return lg;
 	
 	return null;
 };

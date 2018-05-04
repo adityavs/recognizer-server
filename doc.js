@@ -31,6 +31,20 @@ const Doc = function () {
 
 module.exports = Doc;
 
+/**
+ * The function processes a json produced by a modified pdftotext version (xpdf),
+ * and creates a document that is used for further processing.
+ * The json contains PDF metadata and structured page data,
+ * which is kept in arrays to reduce request size.
+ * Each page structure consists of: page->column->paragraph->line->word,
+ * but we are only interested in lines and words.
+ * Lines are grouped to blocks (paragraphs) on the server side (in lbs.js), because
+ * pdftotext produced columns and paragraphs aren't good enough in our case.
+ * It also reduces dependency on specific pdftotext version (xpdf, poppler), because
+ * poppler instead of columns and paragraphs, has flows and blocks
+ * @param json
+ * @return {object}
+ */
 Doc.prototype.getDoc = function (json) {
 	let doc = {text: '', pages: []};
 	
@@ -41,6 +55,7 @@ Doc.prototype.getDoc = function (json) {
 	doc.metadata = json.metadata;
 	
 	if (!json.pages) return null;
+	// PAGES
 	for (let p of json.pages) {
 		let page = {
 			width: p[0],
@@ -50,28 +65,27 @@ Doc.prototype.getDoc = function (json) {
 			contentLeft: 9999999,
 			contentRight: 0,
 			text: '',
-			flows: []
+			lines: []
 		};
 		doc.pages.push(page);
+		// COLUMNS
 		for (let f of p[2]) {
-			let flow = {blocks: []};
-			page.flows.push(flow);
+			// PARAGRAPHS
 			for (let b of f[0]) {
-				let block = {xMin: b[0], yMin: b[1], xMax: b[2], yMax: b[3], text: '', lines: []};
-				flow.blocks.push(block);
+				// LINES
 				for (let l of b[4]) {
 					let line = {xMin: 0, yMin: 0, xMax: 0, yMax: 0, text: '', words: []};
-					block.lines.push(line);
+					page.lines.push(line);
 					doc.text += '\n';
 					page.text += '\n';
-					block.text += '\n';
+					// WORDS
 					for (let w of l[0]) {
 						let word = {
 							xMin: w[0],
 							yMin: w[1],
 							xMax: w[2],
 							yMax: w[3],
-							fontsize: w[4],
+							fontSize: w[4],
 							space: w[5],
 							baseline: w[6],
 							rotation: w[7],
@@ -88,7 +102,6 @@ Doc.prototype.getDoc = function (json) {
 						
 						doc.text += word.text + (word.space ? ' ' : '');
 						page.text += word.text + (word.space ? ' ' : '');
-						block.text += word.text + (word.space ? ' ' : '');
 						line.text += word.text + (word.space ? ' ' : '');
 						
 						if (!line.xMin || line.xMin > word.xMin) line.xMin = word.xMin;
@@ -99,11 +112,11 @@ Doc.prototype.getDoc = function (json) {
 						if (page.contentLeft > word.xMin) page.contentLeft = word.xMin;
 						if (page.contentRight < word.xMax) page.contentRight = word.xMax;
 						
-						if (page.fsDist[word.fontsize]) {
-							page.fsDist[word.fontsize] += word.text.length;
+						if (page.fsDist[word.fontSize]) {
+							page.fsDist[word.fontSize] += word.text.length;
 						}
 						else {
-							page.fsDist[word.fontsize] = word.text.length;
+							page.fsDist[word.fontSize] = word.text.length;
 						}
 						
 						if (page.fDist[word.font]) {
@@ -124,6 +137,11 @@ Doc.prototype.getDoc = function (json) {
 	return doc;
 };
 
+/**
+ * Remove zero width spaces
+ * @param text
+ * @return {string}
+ */
 Doc.prototype.clean = function (text) {
 	return text.replace(/\u200B/g, '');
 };

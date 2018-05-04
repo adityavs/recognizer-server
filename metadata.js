@@ -32,6 +32,11 @@ const Metadata = function (options) {
 
 module.exports = Metadata;
 
+/**
+ * Extract metadata from the actual PDF file metadata
+ * @param doc
+ * @return {Promise<void>}
+ */
 Metadata.prototype.extract = async function (doc) {
 	let result = {};
 	let normText = utils.normalize(doc.text);
@@ -60,11 +65,13 @@ Metadata.prototype.extract = async function (doc) {
 		
 		if (key.toLowerCase().indexOf('author') === 0) { // author / authors
 			let authors = doc.metadata[key];
+			// Extract authors when names are in typical order: John P. Smith
 			let res = await this.authors.extractFromStringType1(authors);
 			if (res) {
 				result.authors = res;
 			}
 			else {
+				// Extract authors when the last name goes first: Smith, John
 				res = await this.authors.extractFromStringType2(authors);
 				if (res) {
 					result.authors = res;

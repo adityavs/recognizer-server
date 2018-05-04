@@ -39,26 +39,35 @@ Extract.prototype.isbn = function (text) {
 	while (m = rx.exec(text)) {
 		let isbn = m[3].replace(/[^0-9X]/gi, '');
 		
+		// If ISBN-10 or ISBN-13 is found
 		if (isbn.length === 10 || isbn.length === 13) {
 			isbns.push(isbn);
 			continue;
 		}
 		
+		// Sometimes ISBN aren't separated with space
+		// If two ISBN-10 or two ISBN-13 detected
 		if (isbn.length === 20 || isbn.length === 26) {
+			// Just slice the first one
 			isbns.push(isbn.slice(0, isbn.length / 2));
 			continue;
 		}
 		
+		// If mixed ISBN-10 and ISBN-13 pair found, we don't know what is the length of the first one
 		if (isbn.length === 23) {
+			// Slice both ISBNs, validate, and one of them should be correct
 			let isbn13 = isbn.slice(0, 13);
 			let isbn10 = isbn.slice(0, 10);
-			if (utils.isValidIsbn(isbn13)) return isbn13;
-			if (utils.isValidIsbn(isbn10)) return isbn10;
+			if (utils.isValidIsbn(isbn13)) isbns.push(isbn13);
+			if (utils.isValidIsbn(isbn10)) isbns.push(isbn10);
 		}
 	}
 	
-	if (!isbns.length || isbns.length > 3) return null;
-	return isbns[0];
+	// Return the first found ISBN, but only if no more than 3 ISBNs are found.
+	// Sometimes books have three correct ISBNs i.e. ISBN-10, ISBN-13, e-ISBN,
+	// but if there are more than three of them, it definitely means that the
+	// book is referencing other books, therefore detecting its own ISBN becomes impossible
+	return isbns.length >= 1 && isbns.length <= 3 ? isbns[0] : null;
 };
 
 Extract.prototype.arxiv = function (text) {
@@ -109,6 +118,16 @@ Extract.prototype.issue = function (text) {
 	return null;
 };
 
+/**
+ * Sometimes DOI extraction results in incorrect DOI because
+ * it was in round or square brackets. But DOI can have brackets too.
+ * This function analyses opening and closing brackets and detects
+ * where is the actual end of the DOI
+ * i.e "(10.1016/s1474-5151(03)00108-7)" is extracted as "10.1016/s1474-5151(03)00108-7)"
+ * and this functions fixes it to "10.1016/s1474-5151(03)00108-7"
+ * @param text
+ * @return {string}
+ */
 Extract.prototype.cleanInvalidParentheses = function (text) {
 	let text2 = '';
 	let depth = 0;
@@ -125,8 +144,15 @@ Extract.prototype.cleanInvalidParentheses = function (text) {
 	return text2;
 };
 
+/**
+ * Extract DOI from document text
+ * @param doc
+ * @return {Promise<*>}
+ */
 Extract.prototype.doi = async function (doc) {
 	let text = '';
+	
+	if (!doc.pages.length) return 0;
 	
 	if (doc.pages.length >= 1) {
 		text += doc.pages[0].text;
@@ -140,14 +166,11 @@ Extract.prototype.doi = async function (doc) {
 	if (!m) return null;
 	
 	for (let doi of m) {
+		// Clean "10.1016/s1474-5151(03)00108-7)"
 		doi = this.cleanInvalidParentheses(doi);
 		
-		let cs = [];
-		for (let c of doi) {
-			if (c >= 'A' && c <= 'Z') c = c.toLowerCase();
-			cs.push(c);
-		}
-		doi = cs.join('');
+		// ASCII letters in DOI are case insensitive
+		doi = doi.split('').map(c => (c >= 'A' && c <= 'Z') ? c.toLowerCase() : c).join('');
 		
 		return doi;
 	}
@@ -161,10 +184,11 @@ Extract.prototype.journal = async function (text) {
 	while (m = XRegExp.exec(text, rx, pos)) {
 		pos = m.index + m[0].length;
 		let name = m[0];
-		let nameParts = name.split(' ');
-		let namePartsNum = nameParts.length;
-		if (namePartsNum < 2) continue;
 		
+		// Journal name must be have at least two words
+		if (name.split(' ').length < 2) continue;
+		
+		// It must exist in our database
 		if (await this.db.journalExists(name)) {
 			return name;
 		}
@@ -173,76 +197,75 @@ Extract.prototype.journal = async function (text) {
 };
 
 Extract.prototype.keywords = function (doc) {
-	for (let i = 0; i < doc.pages.length && i < 2; i++) {
-		let page = doc.pages[i];
+	
+	// Search for keywords in the first two pages only
+	for (let page of doc.pages.slice(0, 2)) {
 		
+		// Group lines to line blocks. Similarly to lbs.js
+		// but much simpler, optimized for keywords.
+		// Lines must be grouped because keywords sometimes are wrapped
+		// Therefore we need to group them together, but separate from all other text too
 		let lbs = [];
-		for (let flow of page.flows) {
-			for (let block of flow.blocks) {
-				for (let i = 0; i < block.lines.length; i++) {
-					let line = block.lines[i];
-					
-					if (!line.words.length) continue;
-					
-					let lastLb = null;
-					let prevWord = null;
-					
-					if (lbs.length) {
-						lastLb = lbs[lbs.length - 1];
-						let prevLine = lastLb.lines[lastLb.lines.length - 1];
-						prevWord = prevLine.words[prevLine.words.length - 1];
-					}
-					
-					if (!(prevWord &&
-						prevWord.font === line.words[0].font &&
-						line.yMin - prevWord.yMax < prevWord.fontsize / 2)) {
-						lbs.push({
-							lines: [line]
-						});
-					}
-					else {
-						lastLb.lines.push(line);
-					}
-				}
+		
+		for (let line of page.lines) {
+			
+			// Line must have words
+			if (!line.words.length) continue;
+			
+			let lastLb = null;
+			let prevWord = null;
+			
+			// Try to get the line (and the last word) from the previous line block
+			if (lbs.length) {
+				lastLb = lbs.slice(-1)[0];
+				let prevLine = lastLb.lines.slice(-1)[0];
+				prevWord = prevLine.words.slice(-1)[0];
+			}
+			
+			// To group this line with the previous line we have to compare
+			// the last word from the previous line with the first
+			// word from the current line.
+			// Fonts must be equal, and line spacing should be small enough
+			if (
+				prevWord &&
+				prevWord.font === line.words[0].font &&
+				line.yMin - prevWord.yMax < prevWord.fontSize / 2
+			) {
+				lastLb.lines.push(line);
+			}
+			// Or just create a new line block
+			else {
+				lbs.push({
+					lines: [line]
+				});
 			}
 		}
 		
-		for (let j = 0; j < lbs.length; j++) {
-			let lb = lbs[j];
+		
+		for (let lb of lbs) {
 			let text = '';
 			for (let line of lb.lines) {
 				text += line.text;
-				if (text[text.length - 1] === '-') {
-					text = text.slice(0, text.length - 2);
+				if (text.slice(-1)[0] === '-') {
+					text = text.slice(0, -1);
 				}
 				else {
-					if (j + 1 !== lbs.length) text += ' ';
+					text += ' ';
 				}
 			}
 			
+			// Keyword title must start with an upper case letter
 			if (!utils.isUpper(text[0])) continue;
 			
 			let m = /^(keywords|key words|key-words|indexing terms)[ :\-—]*(.*)/i.exec(text);
 			
 			if (m) {
-				let parts = m[2].split(/[;,.·—]/);
-				
-				let keywords = [];
-				let skip = false;
-				for (let part of parts) {
-					part = part.trim();
-					if (!part.length) continue;
-					if (part.length <= 2 || part.split(' ').length > 3) {
-						skip = true;
-						break;
-					}
-					keywords.push(part);
-				}
-				
-				if (skip) continue;
-				
-				if (keywords.length < 2) continue;
-				
+				let keywords = m[2].split(/[;,.·—]/);
+				keywords = keywords.map(x => x.trim()).filter(x => x);
+				// If there are keywords that are 1-2 character length or more than three words length,
+				// we don't risk and stop keywords extraction
+				if (keywords.some(x => x.length > 0 && x.length <= 2 || x.split(' ').length > 3)) return null;
+				if (keywords.length < 2) return null;
 				return keywords;
 			}
 		}

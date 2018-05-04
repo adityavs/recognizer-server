@@ -23,109 +23,109 @@
  ***** END LICENSE BLOCK *****
  */
 
-/* Combines related lines into line blocks */
-
 const Lbs = function () {
 
 };
 
 module.exports = Lbs;
 
+/**
+ * Group text lines by their purpose. I.e. Title lines, paragraph lines
+ */
 Lbs.prototype.getLineBlocks = function (page) {
 	let lbs = [];
 	
-	for (let flow of page.flows) {
-		for (let block of flow.blocks) {
-			for (let i = 0; i < block.lines.length; i++) {
-				let line1 = block.lines[i];
-				let line2 = 0;
-				if (i + 1 < block.lines.length) line2 = block.lines[i + 1];
-				
-				this.addLine(lbs, line1, line2);
-			}
+	for (let i = 0; i < page.lines.length; i++) {
+		let line1 = page.lines[i];
+		let line2 = null;
+		if (i + 1 < page.lines.length && page.lines[i + 1].yMin > page.lines[i].yMax) {
+			line2 = page.lines[i + 1];
 		}
+		
+		this.addLine(lbs, line1, line2);
 	}
 	
 	//console.log(lbs);
 	
 	// for (let lb of lbs) {
 	// 	for (let line of lb.lines) {
-	// 		console.log(lb.maxFontSize, lb.dominatingFont, line.text);
+	// 		console.log(lb.maxFontSize, lb.dominatingFont, line.yMax - line.yMin, line.text);
 	// 	}
 	// 	console.log(' ');
 	// 	console.log(' ');
 	// }
-	//
+	
 	return lbs;
 };
 
-Lbs.prototype.addLine = function (lbs, line, line2) {
-	let that = this;
-	let lineDominatingFont = this.getLineDominatingFont(line);
-	let maxFontSize = this.getLineDominatingFontsize(line);
+Lbs.prototype.addLine = function (lbs, line, lineNext) {
+	let dominatingFont = this.getLineDominatingFont(line);
+	let maxFontSize = this.getLineDominatingFontSize(line);
 	let upper = this.isLineUpper(line);
 	
-	let n = lbs.length;
-	if (n > 0) {
-		n--;
-		let tb = lbs[n];
+	if (lbs.length) {
+		let lb = lbs.slice(-1)[0];
 		
-		// Space between lines must be more or less equal. But <sup> can increase that space
-		let skip = 0;
-		if (line2 && Math.abs(((line.yMin - tb.yMax) - (line2.yMin - line.yMax))) > tb.maxFontSize / 3) skip = 1;
+		let linePrev = lb.lines.slice(-1)[0];
+		let lineSpacing = line.yMin - linePrev.yMax;
 		
-		let lfe = this.lineFontsEqual(line, tb.lines[tb.lines.length - 1]);
+		// Line spacing between the previous, the current and the next line (if exists) must be similar
+		// if dominating fonts are different
+		let allowLineSpacing = true;
+		if (lineNext) {
+			let lineSpacingNext = lineNext.yMin - line.yMax;
+			allowLineSpacing = lineSpacing < lineSpacingNext + lb.maxFontSize / 2;
+		}
 		
-		let hasEqualFontWords = this.hasEqualFontWords(line, tb.lines[tb.lines.length - 1]);
 		
-		let maxLineGap;
+		// Usually text block is either UPPERCASE or LOWERCASE, but sometimes they can be mixed
+		// i.e. UPPERCASE title that contains italic lowercase latin term which is in a new line
+		let allowUpperLower = true;
+		if (lb.upper !== upper) {
+			allowUpperLower = lineSpacing < lb.maxFontSize && this.haveIdenticalLineHeight(line, linePrev);
+		}
 		
-		if (tb.maxFontSize <= 12.0 && !tb.upper) {
-			maxLineGap = tb.maxFontSize;
+		// Lines must have all or at least some identical font words
+		let allowFont;
+		if (this.allWordsHaveIdenticalFont(line) && this.allWordsHaveIdenticalFont(linePrev)) {
+			allowFont = line.words[0].font === linePrev.words[0].font;
 		}
 		else {
-			maxLineGap = tb.maxFontSize * 2.5;
+			allowFont = dominatingFont === lb.dominatingFont || this.haveIdenticalFontWords(line, linePrev);
 		}
 		
-		function fn1() {
-			if (lineDominatingFont !== tb.dominatingFont && skip) return 0;
-			
-			if (!(tb.upper === upper || (line.yMin - tb.yMax < tb.maxFontSize &&
-					that.allowUpperNonupper(line, tb.lines[tb.lines.length - 1])))) return 0;
-			
-			if (!((lfe === 0 && (lineDominatingFont === tb.dominatingFont || hasEqualFontWords ||
-					(tb.maxFontSize === maxFontSize && line.yMin - tb.yMax < tb.maxFontSize * 1))) ||
-					lfe === 1)) return 0;
-			
-			
-			if (!(line.words[0].bold === tb.bold)) return 0;
-			
-			if (!(Math.abs(tb.maxFontSize - maxFontSize) <= 1.0) && !hasEqualFontWords) return 0;
-			
-			if (!(line.yMin - tb.yMax < maxLineGap)) return 0;
-			
-			if (!((line.xMin >= tb.xMin || Math.abs(line.xMin - tb.xMin) < 20.0) &&
-					(line.xMax <= tb.xMax || Math.abs(line.xMax - tb.xMax) < 20.0) ||
-					(line.xMin <= tb.xMin || Math.abs(line.xMin - tb.xMin) < 20.0) &&
-					(line.xMax >= tb.xMax || Math.abs(line.xMax - tb.xMax) < 20.0))) return 0;
-			
-			
-			tb.lines.push(line);
-			if (line.xMin < tb.xMin) tb.xMin = line.xMin;
-			if (line.yMin < tb.yMin) tb.yMin = line.yMin;
-			if (line.xMax > tb.xMax) tb.xMax = line.xMax;
-			if (line.yMax > tb.yMax) tb.yMax = line.yMax;
-			
+		// Both are either bold or not bold
+		let allowBold = line.words[0].bold === lb.bold;
+		
+		// Have similar font size or at least some identical size words
+		let allowFontSize = Math.abs(lb.maxFontSize - maxFontSize) <= 1.0 ||
+			this.haveIdenticalFontSizeWords(line, linePrev);
+		
+		// Line spacing isn't too big
+		let maxLineSpacing = lb.maxFontSize;
+		if (lb.maxFontSize > 12.0 || lb.upper) maxLineSpacing = lb.maxFontSize * 2.5;
+		let allowMaxLineSpacing = lineSpacing < maxLineSpacing;
+		
+		// Lines must be aligned or centered on a similar axis or at least some part of them must overlap
+		let combineOverlapping =
+			(line.xMin >= lb.xMin || Math.abs(line.xMin - lb.xMin) < 20.0) &&
+			(line.xMax <= lb.xMax || Math.abs(line.xMax - lb.xMax) < 20.0) ||
+			(line.xMin <= lb.xMin || Math.abs(line.xMin - lb.xMin) < 20.0) &&
+			(line.xMax >= lb.xMax || Math.abs(line.xMax - lb.xMax) < 20.0);
+		
+		if (allowLineSpacing && allowUpperLower && allowFont &&
+			allowBold && allowFontSize && allowMaxLineSpacing && combineOverlapping) {
+			// Push the line to the existing lines block if passed all checks
+			lb.lines.push(line);
+			if (line.xMin < lb.xMin) lb.xMin = line.xMin;
+			if (line.yMin < lb.yMin) lb.yMin = line.yMin;
+			if (line.xMax > lb.xMax) lb.xMax = line.xMax;
+			if (line.yMax > lb.yMax) lb.yMax = line.yMax;
 			return 1;
 		}
-		
-		let res = fn1();
-		
-		if (res) return 1;
-
-// if(upper) console.log(line1.text);
 	}
 	
+	// Push a new line block if it's the first line or it doesn't combine with the previous one
 	let lb = {
 		lines: [line],
 		yMin: line.yMin,
@@ -134,19 +134,19 @@ Lbs.prototype.addLine = function (lbs, line, line2) {
 		xMax: line.xMax,
 		maxFontSize,
 		bold: line.words[0].bold,
-		dominatingFont: lineDominatingFont,
+		dominatingFont: dominatingFont,
 		upper: upper,
 	};
 	
 	lbs.push(lb);
 };
 
-Lbs.prototype.hasEqualFontWords = function(line1, line2) {
+Lbs.prototype.haveIdenticalFontWords = function (line1, line2) {
 	for (let word1 of line1.words) {
-		if(word1.text.length<2) continue;
+		if (word1.text.length < 2) continue;
 		for (let word2 of line2.words) {
-			if(word2.text.length<2) continue;
-			if (word1.font === word2.font && word1.fontsize === word2.fontsize) {
+			if (word2.text.length < 2) continue;
+			if (word1.font === word2.font) {
 				return true
 			}
 		}
@@ -154,11 +154,12 @@ Lbs.prototype.hasEqualFontWords = function(line1, line2) {
 	return false;
 };
 
-Lbs.prototype.allowUpperNonupper = function (line1, line2) {
+Lbs.prototype.haveIdenticalFontSizeWords = function (line1, line2) {
 	for (let word1 of line1.words) {
+		if (word1.text.length < 2) continue;
 		for (let word2 of line2.words) {
-			if (word1.font === word2.font && word1.fontsize === word2.fontsize &&
-				word1.yMax - word1.yMin === word2.yMax - word2.yMin) {
+			if (word2.text.length < 2) continue;
+			if (word1.fontSize === word2.fontSize) {
 				return true
 			}
 		}
@@ -166,37 +167,12 @@ Lbs.prototype.allowUpperNonupper = function (line1, line2) {
 	return false;
 };
 
-Lbs.prototype.lineFontsEqual = function (line1, line2) {
-	
-	let font1 = undefined;
-	let font2 = undefined;
-	if (!line1.words.length || !line2.words.length) return false;
-	
-	for (let word of line1.words) {
-		if (font1 === undefined) {
-			font1 = word.font;
-		}
-		else {
-			if (word.font !== font1) {
-				return 0;
-			}
-		}
-	}
-	
-	for (let word of line2.words) {
-		if (font2 === undefined) {
-			font2 = word.font;
-		}
-		else {
-			if (word.font !== font2) {
-				return 0;
-			}
-		}
-	}
-	
-	if (font1 === font2) return 1;
-	
-	return 2;
+Lbs.prototype.haveIdenticalLineHeight = function (line1, line2) {
+	return (line1.yMax - line1.yMin) === (line2.yMax - line2.yMin);
+};
+
+Lbs.prototype.allWordsHaveIdenticalFont = function (line) {
+	return line.words.length && line.words.every(x => x.font === line.words[0].font);
 };
 
 Lbs.prototype.getLineDominatingFont = function (line) {
@@ -224,29 +200,29 @@ Lbs.prototype.getLineDominatingFont = function (line) {
 	return maxLengthFont;
 };
 
-Lbs.prototype.getLineDominatingFontsize = function (line) {
-	let fontsizes = {};
+Lbs.prototype.getLineDominatingFontSize = function (line) {
+	let fontSizes = {};
 	for (let word of line.words) {
-		if (!fontsizes[word.fontsize]) {
-			fontsizes[word.fontsize] = word.text.length;
+		if (!fontSizes[word.fontSize]) {
+			fontSizes[word.fontSize] = word.text.length;
 		}
 		else {
-			fontsizes[word.fontsize] += word.text.length;
+			fontSizes[word.fontSize] += word.text.length;
 		}
 	}
 	
 	let maxLength = 0;
-	let maxLengthFontsize = -1;
+	let maxLengthFontSize = -1;
 	
-	for (let fontsize in fontsizes) {
-		let length = fontsizes[fontsize];
+	for (let fontSize in fontSizes) {
+		let length = fontSizes[fontSize];
 		if (length > maxLength) {
-			maxLengthFontsize = fontsize;
+			maxLengthFontSize = fontSize;
 			maxLength = length;
 		}
 	}
 	
-	return parseFloat(maxLengthFontsize);
+	return parseFloat(maxLengthFontSize);
 };
 
 Lbs.prototype.isLineUpper = function (line) {
@@ -269,4 +245,3 @@ Lbs.prototype.isLineUpper = function (line) {
 	
 	return false;
 };
-

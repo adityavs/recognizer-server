@@ -45,17 +45,17 @@ Title.prototype.getAlphabeticPercent = function (text) {
 	return alphabetic * 100 / text.length;
 };
 
-Title.prototype.getFontsizeThreshold = function (page) {
-	let minFontsize = 0;
+Title.prototype.getFontSizeThreshold = function (page) {
+	let minFontSize = 0;
 	
-	for (let fontsize in page.fsDist) {
-		fontsize = parseFloat(fontsize);
-		let fontcount = page.fsDist[fontsize];
-		if (fontcount > 400 && minFontsize < fontsize) minFontsize = fontsize;
+	for (let fontSize in page.fsDist) {
+		fontSize = parseFloat(fontSize);
+		let fontcount = page.fsDist[fontSize];
+		if (fontcount > 400 && minFontSize < fontSize) minFontSize = fontSize;
 	}
 	
-	if (minFontsize) {
-		return minFontsize + 1;
+	if (minFontSize) {
+		return minFontSize + 1;
 	}
 	
 	let d = Object.keys(page.fsDist).map(function (value) {
@@ -66,27 +66,30 @@ Title.prototype.getFontsizeThreshold = function (page) {
 	return d.pop();
 };
 
+/**
+ * Checks if line block has enough free space around it
+ */
 Title.prototype.isVisuallySeparated = function (lbs, i) {
+	// Previous line block
 	let lb_prev = 0;
 	if (i > 0) lb_prev = lbs[i - 1];
+	
+	// Current line block
 	let lb = lbs[i];
+	
+	// Next line block
 	let lb_next = 0;
 	if (i + 1 < lbs.length) lb_next = lbs[i + 1];
-	let before = 1;
-	let after = 1;
-	if (lb_prev && lb.yMin - lb_prev.yMax < Math.max(lb.maxFontSize, lb_prev.maxFontSize)) before = 0;
-	if (lb_next && lb_next.yMin - lb.yMax < Math.max(lb.maxFontSize, lb_next.maxFontSize)) after = 0;
-	if (!before && !after) return 0;
-	return 1;
+	
+	// If there is no another line block before (or after) or the line spacing is higher than both font sizes
+	let freeSpaceBefore = !lb_prev || lb.yMin - lb_prev.yMax > Math.max(lb.maxFontSize, lb_prev.maxFontSize);
+	let freeSpaceAfter = !lb_next || lb_next.yMin - lb.yMax > Math.max(lb.maxFontSize, lb_next.maxFontSize);
+	
+	return freeSpaceBefore || freeSpaceAfter;
 };
 
 Title.prototype.wordsCount = function (title) {
-	let parts = title.split(' ');
-	let count = 0;
-	for (let part of parts) {
-		if (part.length) count++;
-	}
-	return count;
+	return title.split(' ').filter(x => x).length;
 };
 
 Title.prototype.cleanTitle = function (title) {
@@ -98,15 +101,21 @@ Title.prototype.hasQuoteMarks = function (title) {
 		/["'\u2018\u2019\u201c\u201d\u0060\u00b4]/.test(title.slice(-1));
 };
 
-Title.prototype.getTitleAuthor = async function (page, breakPageY) {
+/**
+ * Extracts title and authors.
+ * Tries to find title and authors nearby
+ *
+ * @param page
+ * @param breakPageY
+ * @return {Promise<*>}
+ */
+Title.prototype.getTitleAndAuthors = async function (page, breakPageY) {
 	let lbs = page.lbs;
-	let font_size_threshold = this.getFontsizeThreshold(page);
-	let lbsSorted = lbs.slice();
-	lbsSorted.sort(function (a, b) {
-		if (a.maxFontSize > b.maxFontSize) return -1;
-		if (a.maxFontSize < b.maxFontSize) return 1;
-		return 0;
-	});
+	let font_size_threshold = this.getFontSizeThreshold(page);
+	
+	// Sort line blocks by their maxFontSize. Usually the biggest
+	// block is the title
+	let lbsSorted = lbs.slice().sort((a, b) => b.maxFontSize - a.maxFontSize);
 	
 	for (let i = 0; i < lbsSorted.length; i++) {
 		let tlb = lbsSorted[i];
@@ -119,6 +128,7 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (title.length < 25 || title.length > 400) continue;
 		
+		// At least two words
 		if (this.wordsCount(title) < 2) continue;
 		
 		if (this.getAlphabeticPercent(title) < 60) continue;
@@ -127,14 +137,14 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		//if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
 		
-		let authors = await this.authors.extractAuthors(lbs, lbs.indexOf(tlb));
+		let authors = await this.authors.extractAuthorsNearTitle(lbs, lbs.indexOf(tlb));
 		if (authors.length) {
-			log.debug("extracted1", title, authors);
 			title = this.cleanTitle(title);
 			return {title, authors};
 		}
 	}
 	
+	// Try unsorted line blocks, but only for uppercase titles
 	for (let i = 0; i < lbs.length; i++) {
 		let tlb = lbs[i];
 		
@@ -142,19 +152,23 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 		
 		if (!tlb.upper) continue;
 		
+		// Converts line block lines to a single textline
 		let title = this.lineBlockToText(tlb, 0);
 		
 		if (title.length < 20 || title.length > 400) continue;
+		
+		// At least 60% of characters are alphabetic
 		if (this.getAlphabeticPercent(title) < 60) continue;
+		
+		// At least two words
 		if (this.wordsCount(title) < 2) continue;
 		
 		if (!this.isVisuallySeparated(lbs, i)) continue;
 		
 		if (this.hasQuoteMarks(title)) continue;
 		
-		let authors = await this.authors.extractAuthors(lbs, i);
+		let authors = await this.authors.extractAuthorsNearTitle(lbs, i);
 		if (authors.length) {
-			log.debug("extracted2", title, authors);
 			title = this.cleanTitle(title);
 			return {title, authors};
 		}
@@ -163,7 +177,7 @@ Title.prototype.getTitleAuthor = async function (page, breakPageY) {
 	return null;
 };
 
-Title.prototype.getAuthorsByExistingTitle = async function (doc, existingTitle) {
+Title.prototype.getAuthorsNearExistingTitle = async function (doc, existingTitle) {
 	for (let page of doc.pages) {
 		let lbs = page.lbs;
 		
@@ -176,23 +190,13 @@ Title.prototype.getAuthorsByExistingTitle = async function (doc, existingTitle) 
 			let titleNorm = utils.normalize(title);
 			if (titleNorm.indexOf(existingTitle) < 0) continue;
 			
-			let authors = await this.authors.extractAuthors(lbs, i);
+			let authors = await this.authors.extractAuthorsNearTitle(lbs, i);
 			if (authors.length) {
 				return authors;
 			}
 		}
 	}
 	return null;
-};
-
-Title.prototype.skipBlock = function (lbs, lbi) {
-	let curLb = lbs[lbi];
-	for (let i = lbi - 1; i > 0 && lbi - i < 5; i--) {
-		let prevLb = lbs[i];
-		if (prevLb.xMax < curLb.xMin || prevLb.xMin > curLb.xMax) continue;
-		if (prevLb.maxFontSize > curLb.yMin - prevLb.yMax) return true;
-	}
-	return false;
 };
 
 Title.prototype.lineBlockToText = function (lb, m) {
@@ -204,68 +208,77 @@ Title.prototype.lineBlockToText = function (lb, m) {
 	return text;
 };
 
-Title.prototype.getDoi = async function (doc, breakLine) {
+/**
+ * Resolve title to DOI
+ * Loops through line blocks, normalizes, calculates hash and tries to find DOI in database
+ */
+Title.prototype.findDoiByTitle = async function (doc, breakLine) {
 	let count = 0;
 	
 	let normText = utils.normalize(doc.text);
 	
 	let pages = doc.pages;
+	
+	// Tries to resolve DOI only in first two pages
 	for (let pageIndex = 0; pageIndex < pages.length && pageIndex < 2; pageIndex++) {
 		let page = pages[pageIndex];
 		let lbs = page.lbs;
 		
 		if (breakLine && pageIndex > breakLine.pageIndex) break;
 		
-		let foundDoi = null;
-		let foundDoisCount = 0;
+		let foundDois = [];
 		
 		for (let i = 0; i < lbs.length; i++) {
-			let gb = lbs[i];
+			let lb = lbs[i];
 			
-			if (breakLine && pageIndex === breakLine.pageIndex && gb.yMin >= breakLine.pageY) continue;
+			if (breakLine && pageIndex === breakLine.pageIndex && lb.yMin >= breakLine.pageY) continue;
 			
-			let title = this.lineBlockToText(gb, 0);
-			// console.log('tttt1', title);
+			let title = this.lineBlockToText(lb, 0);
 			if (count > 100) break;
-			//if (this.skipBlock(lbs, i)) continue; // todo: fix
 			
-			for (let m = 0; m < gb.lines.length && m < 2; m++) {
-				if (gb.lines.length - m > 7) continue;
-				let title = this.lineBlockToText(gb, m);
-				// console.log('title1', title);
+			for (let m = 0; m < lb.lines.length && m < 2; m++) {
+				if (lb.lines.length - m > 7) continue;
+				let title = this.lineBlockToText(lb, m);
 				let normTitle = utils.normalize(title);
 				if (normTitle.length < 15 || normTitle.length > 300) continue;
 				count++;
 				let doi = await this.db.getDoiByTitle(normTitle, normText);
 				if (doi) {
-					log.debug("found doi1", doi);
-					foundDoi = doi;
-					foundDoisCount++;
-					if (foundDoisCount >= 2) return null;
+					foundDois.push(doi);
+					if (foundDois.length >= 2) return null;
 				}
 			}
 			
+			// Try to combine title from two line blocks. Useful when:
+			// 1) Line grouping to blocks fails (in lbs.js) and title
+			// becomes separated into two line blocks
+			// 2) There is a subtitle which must be included to title because
+			// in our database it exist in full name (title+subtitle)
 			if (i + 1 < lbs.length) {
 				let curLb = lbs[i];
 				let nextLb = lbs[i + 1];
+				
+				// Line block is in the first 1/3 of page
 				if (curLb.yMin > page.height / 3) continue;
+				
+				// Maximum 6 combined lines
 				if (curLb.lines.length + nextLb.lines.length > 6) continue;
-				let title = this.lineBlockToText(curLb, 0);
-				title += this.lineBlockToText(nextLb, 0);
-				// console.log('title2', title);
+				
+				let title = this.lineBlockToText(curLb, 0) + ' ' + this.lineBlockToText(nextLb, 0);
+				
 				let normTitle = utils.normalize(title);
 				if (normTitle.length < 15 || normTitle.length > 300) continue;
+				
 				count++;
 				let doi = await this.db.getDoiByTitle(normTitle, normText);
 				if (doi) {
-					log.debug("found doi2", doi);
-					foundDoi = doi;
-					foundDoisCount++;
-					if (foundDoisCount >= 2) return null;
+					foundDois.push(doi);
+					if (foundDois.length >= 2) return null;
 				}
 			}
+			
 		}
-		if (foundDoi) return foundDoi;
+		if (foundDois.length) return foundDois[0];
 	}
 	return null;
 };

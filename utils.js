@@ -26,6 +26,13 @@
 const XRegExp = require('xregexp');
 const cld = require('cld');
 
+/**
+ * Decomposes all accents and ligatures,
+ * filters out symbols that aren't alphabetic,
+ * and lowercases alphabetic symbols.
+ * @param text
+ * @return {string | *}
+ */
 exports.normalize = function (text) {
 	let rx = XRegExp('[^\\pL]', 'g');
 	text = XRegExp.replace(text, rx, '');
@@ -35,6 +42,11 @@ exports.normalize = function (text) {
 	return text;
 };
 
+/**
+ * Run Compact Language Detector
+ * @param text
+ * @return {Promise<any>}
+ */
 exports.detectLanguage = function (text) {
 	return new Promise(function (resolve, reject) {
 		cld.detect(text, function (err, result) {
@@ -72,7 +84,7 @@ exports.isValidIsbn = function (str) {
 			}
 		}
 		check = (10 - (sum % 10)) % 10;
-		return (check == str[str.length - 1]);
+		return (check == str.slice(-1)[0]);
 	}
 	
 	if (str.length == 10) {
@@ -87,13 +99,13 @@ exports.isValidIsbn = function (str) {
 		if (check == 10) {
 			check = 'X';
 		}
-		return (check == str[str.length - 1].toUpperCase());
+		return (check == str.slice(-1)[0].toUpperCase());
 	}
 };
 
 exports.isUpper = function (c) {
 	if (!c) return false;
-	return c === c.toString().toUpperCase()
+	return c === c.toString().toUpperCase() && XRegExp('\\p{Letter}').test(c)
 };
 
 exports.isBreakSection = function (lineText) {
