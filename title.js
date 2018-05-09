@@ -27,8 +27,6 @@ const log = require('./log');
 const XRegExp = require('xregexp');
 const utils = require('./utils');
 
-let areg1 = XRegExp('[\\p{Letter}]');
-
 const Title = function (options) {
 	this.db = options.db;
 	this.authors = options.authors;
@@ -36,11 +34,17 @@ const Title = function (options) {
 
 module.exports = Title;
 
+/**
+ * Return how many percents of the text are alphabetic characters
+ * @param text
+ * @return {number}
+ */
 Title.prototype.getAlphabeticPercent = function (text) {
 	if (!text.length) return 0;
 	let alphabetic = 0;
+	let rx = XRegExp('[\\p{Letter}]');
 	for (let c of text) {
-		if (areg1.test(c)) alphabetic++;
+		if (rx.test(c)) alphabetic++;
 	}
 	return alphabetic * 100 / text.length;
 };
@@ -68,6 +72,9 @@ Title.prototype.getFontSizeThreshold = function (page) {
 
 /**
  * Checks if line block has enough free space around it
+ * @param lbs
+ * @param i
+ * @return {boolean}
  */
 Title.prototype.isVisuallySeparated = function (lbs, i) {
 	// Previous line block
@@ -92,10 +99,20 @@ Title.prototype.wordsCount = function (title) {
 	return title.split(' ').filter(x => x).length;
 };
 
+/**
+ * Remove footnote character at the end of title
+ * @param title
+ * @return {string}
+ */
 Title.prototype.cleanTitle = function (title) {
-	return title.replace(/[*1]$/, '');
+	return title.replace(/[*|∗|⁎|†|‡|§|¶|⊥|¹|1|α|β|λ|ξ|ψ]$/, '');
 };
 
+/**
+ * Test if text is inside quotes
+ * @param title
+ * @return {boolean}
+ */
 Title.prototype.hasQuoteMarks = function (title) {
 	return /["'\u2018\u2019\u201c\u201d\u0060\u00b4]/.test(title[0]) &&
 		/["'\u2018\u2019\u201c\u201d\u0060\u00b4]/.test(title.slice(-1));
@@ -111,7 +128,7 @@ Title.prototype.hasQuoteMarks = function (title) {
  */
 Title.prototype.getTitleAndAuthors = async function (page, breakPageY) {
 	let lbs = page.lbs;
-	let font_size_threshold = this.getFontSizeThreshold(page);
+	let fontSizeThreshold = this.getFontSizeThreshold(page);
 	
 	// Sort line blocks by their maxFontSize. Usually the biggest
 	// block is the title
@@ -122,7 +139,7 @@ Title.prototype.getTitleAndAuthors = async function (page, breakPageY) {
 		
 		if (breakPageY !== null && tlb.yMin >= breakPageY) continue;
 		
-		if (tlb.maxFontSize < font_size_threshold) continue;
+		if (tlb.maxFontSize < fontSizeThreshold) continue;
 		
 		let title = this.lineBlockToText(tlb, 0);
 		
@@ -135,7 +152,7 @@ Title.prototype.getTitleAndAuthors = async function (page, breakPageY) {
 		
 		if (this.hasQuoteMarks(title)) continue;
 		
-		//if (!tlb.upper && tlb.maxFontSize < font_size_threshold && tlb.yMin > page.height / 3) continue;
+		//if (!tlb.upper && tlb.maxFontSize < fontSizeThreshold && tlb.yMin > page.height / 3) continue;
 		
 		let authors = await this.authors.extractAuthorsNearTitle(lbs, lbs.indexOf(tlb));
 		if (authors.length) {

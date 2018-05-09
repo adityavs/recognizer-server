@@ -54,6 +54,14 @@ Recognizer.prototype.init = async function () {
 	this.jstor = new Jstor();
 };
 
+/**
+ * PDF recognition starts here. The function accepts a json
+ * produced by a modified pdftotext version, processes it and
+ * returns extracted metadata.
+ * Returns one of two items types: journal-article or book-chapter (JSTOR PDFs only)
+ * @param json
+ * @return {Promise<object>}
+ */
 Recognizer.prototype.recognize = async function (json) {
 	// Process the received json to doc
 	let doc = this.doc.getDoc(json);
@@ -135,6 +143,7 @@ Recognizer.prototype.recognize = async function (json) {
 		// Try to extract title and authors from the first article page (skip injected pages),
 		// but take into account the break line
 		let pageIndex = firstPage;
+		// If there is no break line or it's not in the current page
 		if (!breakLine || pageIndex <= breakLine.pageIndex) {
 			let y = null;
 			if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
@@ -148,6 +157,7 @@ Recognizer.prototype.recognize = async function (json) {
 		// but take into account the break line
 		if (!res && firstPage === 0 && doc.pages.length >= 2) {
 			pageIndex = 1;
+			// If there is no break line or it's not in the current page
 			if (!breakLine || pageIndex <= breakLine.pageIndex) {
 				let y = null;
 				if (breakLine && pageIndex === breakLine.pageIndex) y = breakLine.pageY;
@@ -173,6 +183,14 @@ Recognizer.prototype.recognize = async function (json) {
 	return result;
 };
 
+/**
+ * Languages that are allowed for title extraction from PDF text.
+ * We try to avoid Non-Latin script languages because the algorithms
+ * have to be specifically adapted for them, otherwise the probability
+ * of incorrect results increases
+ * @param code
+ * @return {boolean}
+ */
 Recognizer.prototype.isLanguageAllowed = function (code) {
 	let allowedCodes = [
 		"af", "sq", "ay", "eu", "bs", "ca", "cs", "ch", "cy", "da", "de", "nl", "en",

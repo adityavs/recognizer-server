@@ -118,3 +118,22 @@ exports.isBreakSection = function (lineText) {
 	return lineText[0] === lineText[0].toUpperCase() &&
 		breakSections.includes(lineText.replace(/[^A-Za-z]/g, '').toLowerCase());
 };
+
+exports.getTopValue = function (items) {
+	let obj = {};
+	for (let item of items) {
+		obj[item.key] = item.value + (obj[item.key] || 0);
+	}
+	
+	let top = 0;
+	let topCount = 0;
+	for (let key in obj) {
+		let value = obj[key];
+		key = parseFloat(key);
+		if (value > topCount) {
+			top = key;
+			topCount = value;
+		}
+	}
+	return top;
+};

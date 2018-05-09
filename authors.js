@@ -4,9 +4,6 @@ const XRegExp = require('xregexp');
 const Int64LE = require('int64-buffer').Int64LE;
 const utils = require('./utils');
 
-const reg1 = XRegExp('[\\p{Letter}]');
-const reg2 = XRegExp('[\\p{Letter}\\p{Dash_Punctuation}’\']');
-
 const Authors = function (options) {
 	this.db = options.db;
 };
@@ -14,29 +11,11 @@ const Authors = function (options) {
 module.exports = Authors;
 
 /**
- * Convert line to array of [{c: character, word: reference to word}]
- * because it's more convenient when all characters are in a flat array
+ * Test if a given author name is a degree or an other forbidden word
+ * @param text
+ * @return {boolean}
  */
-Authors.prototype.lineToUstr = function (line) {
-	let ustr = [];
-	for (let word of line.words) {
-		for (let c of word.text) {
-			ustr.push({c, word});
-		}
-		if (word.space) ustr.push({c: ' ', word});
-	}
-	return ustr;
-};
-
-Authors.prototype.isConjunction = function (name) {
-	let list = ['and', 'und'];
-	return list.includes(name.toLowerCase());
-};
-
-/**
- * Degrees and other words that must be skipped if encountered in authors line
- */
-Authors.prototype.isSkipWord = function (name) {
+Authors.prototype.isSkipWord = function (text) {
 	let list = [
 		'by',
 		'prof',
@@ -61,160 +40,40 @@ Authors.prototype.isSkipWord = function (name) {
 		'rgn',
 		'ba',
 		'ms',
-		'msc'
+		'msc',
+		'sc'
 	];
-	return list.includes(name.toLowerCase());
+	return list.includes(text.toLowerCase());
 };
 
 /**
- * Walks through all characters in the line and tries to parse authors and their names
+ * Returns a coefficient representing:
+ * when k < 0 word is more likely to be a regular word than an author name
+ * when k = 0 word is unknown or can equally be an author name or a regular word
+ * when k > 0 word is more likely to be an author name
+ * @param text
+ * @return {Promise<number>}
  */
-Authors.prototype.extractAuthorsFromUstr = function (ustr) {
-	let authors = [];
-	let names = [];
-	let name = '';
-	let font = null;
-	let fontSize = 0;
-	let baseline = 0;
-	
-	let ref = 0;
-	
-	let that = this;
-	
-	for (let i = 0; i < ustr.length; i++) {
-		
-		let uchar = ustr[i];
-		
-		// Ugly fix for pdftotext incorrectly decomposed characters with an accent
-		// i.e. "Go´mez" becomes "Gomez", all accents are just ignored
-		if (['´', '^', 'ˆ', '¨', '`', '˜', '∼', '¸'].includes(uchar.c)) continue;
-		
-		function fn1() {
-			
-			if (uchar.c === '~') return 1;
-			
-			if (!name.length) {
-				// Skip those characters if they are before name
-				if ([' ', '.'].includes(uchar.c)) return 1;
-				
-				if (font !== null && uchar.word.font !== font) return 2;
-				
-				// If
-				if (
-					fontSize > 1 &&
-					Math.abs(uchar.word.fontSize - fontSize) > 1.0 &&
-					Math.abs(uchar.word.baseline - baseline) > 1.0
-				) {
-					return 2;
-				}
-				
-				if (reg1.test(uchar.c) && !/[Ææ]/.test(uchar.c)) {
-					name += uchar.c;
-					
-					if (!names.length) {
-						font = uchar.word.font;
-						fontSize = uchar.word.fontSize;
-						baseline = uchar.word.baseline;
-					}
-				}
-				else { // If symbol is not a letter
-					return 2;
-				}
-				
-			}
-			else {
-				if (/\*|∗|⁎|†|‡|§|¶|⊥|¹|²|³|α|β|λ|ξ|ψ|\d+/.test(uchar.c)) {
-					ref = 1;
-					return 2;
-				}
-				else if (font !== null && uchar.word.font !== font) {
-					return 2;
-				}
-				else if (
-					Math.abs(uchar.word.fontSize - fontSize) > 1.0 &&
-					Math.abs(uchar.word.baseline - baseline) > 1.0) {
-					return 2;
-				}
-				else if (reg2.test(uchar.c) && !/[Ææ]/.test(uchar.c)) {
-					name += uchar.c;
-				}
-				else if ([' ', '.'].includes(uchar.c)) { // if names separator
-					
-					if (that.isConjunction(name)) {
-						name = '';
-						return 2;
-					}
-					
-					if (that.isSkipWord(name)) {
-						name = '';
-						return 2;
-					}
-					
-					if (!utils.isUpper(name[0])) { // if name doesn't start with an upper case letter
-						name = '';
-						return 3;
-					}
-					
-					names.push(name.slice());
-					name = '';
-					
-					if (names.length >= 4) return 2;
-					
-				}
-				else {
-					return 2;
-				}
-			}
-			
-			return 4;
-		}
-		
-		let r = fn1();
-		
-		// Ignoring some characters like spaces
-		if (r === 1) continue;
-		if (r === 3) break;
-		if (r === 4 && i < ustr.length - 1) continue;
-		// if(r === 2)
-		
-		if (this.isConjunction(name)) name = '';
-		
-		if (this.isSkipWord(name)) name = '';
-		
-		if (name.length) {
-			names.push(name.slice());
-			name = '';
-		}
-		
-		if (names.length >= 2 && names.length <= 4) {
-			if (names.slice(-1)[0].length < 2) return 0;
-			authors.push({ref, names: names.slice()});
-			ref = 0;
-		}
-		else if (names.length !== 0) {
-			break;
-		}
-		
-		name = '';
-		names = [];
-		font = null;
-	}
-	
-	return authors;
-};
-
-Authors.prototype.getWordType = async function (word) {
-	let row = await this.db.getWord(word);
+Authors.prototype.getWordInfo = async function (text) {
+	// Get data about the word from the database
+	let row = await this.db.getWord(text);
 	
 	if (!row) return 0;
 	
-	let a = row.a;
-	let b = row.b;
-	let c = row.c;
+	// How many times the word was encountered as a:
+	let a = row.a; // regular word
+	let b = row.b; // first name
+	let c = row.c; // last name
 	
+	// If zero encounters as a first or last name
 	if (b + c === 0) return -a;
+	
+	// If zero encounters as a regular word,
+	// return sum of first and last name encounters
 	if (a === 0) return b + c;
 	
+	// Now depending on what is more common for the word (to be a name or a regular word),
+	// divide and return how many times it's more common.
 	if (b + c > a) {
 		return (b + c) / a;
 	}
@@ -223,104 +82,196 @@ Authors.prototype.getWordType = async function (word) {
 	else return 0;
 };
 
+Authors.prototype.isPrefix = function (text) {
+	return /^(van|de|di)$/.test(text);
+};
+
+/**
+ * Extracts authors from line
+ * @param line
+ * @return {Array}
+ */
+Authors.prototype.extractFromLine = function (line) {
+	let rxToken = XRegExp('(?![Ææ])[\\p{Letter}-’\'. ]');
+	let rxTrim = XRegExp('^[^\\p{Letter}]+|[^\\p{Letter}’\']+$', 'g');
+	
+	// Walk through the words and make one flat chars array with references to the actual word
+	let chars = [];
+	for (let word of line.words) {
+		for (let c of word.text) {
+			chars.push({c, word})
+		}
+		if (word.space) chars.push({c: ' ', word})
+	}
+	
+	// Ugly fix for pdftotext (xpdf) incorrectly decomposed characters with an accent
+	// i.e. "Go´mez" becomes "Gomez", all accents are just ignored. Poppler works ok
+	chars = chars.filter(x => !['´', '^', 'ˆ', '¨', '`', '˜', '∼', '¸'].includes(x.c));
+	
+	// This is a different character than '∼' above. It's often encountered
+	// in poorly OCRed PDFs. Have to be removed
+	chars = chars.filter(x => x.c !== '~');
+	
+	// Split the chars array into tokens when non-alphabetic characters or font differences found
+	let tokens = [];
+	let token = '';
+	let prevChar = null;
+	let font = 0;
+	let fontSize = 0;
+	let baseline = 0;
+	for (let char of chars) {
+		// Split if the current char is not allowed to be in a token. Ignore the current char
+		if (!rxToken.test(char.c)) {
+			if (token) {
+				tokens.push({text: token, font, fontSize, baseline});
+				token = '';
+			}
+		}
+		// Split if the previous char has a different font, font size or baseline
+		else if (prevChar && (prevChar.word.font !== char.word.font ||
+			Math.abs(char.word.fontSize - prevChar.word.fontSize) > 1.0 &&
+			Math.abs(char.word.baseline - prevChar.word.baseline) > 1.0)) {
+			if (token) {
+				tokens.push({text: token, font, fontSize, baseline});
+				token = '';
+			}
+			token += char.c;
+			font = char.word.font;
+			fontSize = char.word.fontSize;
+			baseline = char.word.baseline;
+		}
+		else {
+			token += char.c;
+			font = char.word.font;
+			fontSize = char.word.fontSize;
+			baseline = char.word.baseline;
+		}
+		
+		prevChar = char;
+	}
+	
+	// Push the remaining token
+	if (token) tokens.push({text: token, font, fontSize, baseline});
+	
+	// Get the most common font size and baseline
+	let topFontSize = utils.getTopValue(tokens.map(x => ({key: x.fontSize, value: x.text.length})));
+	let topBaseline = utils.getTopValue(tokens.map(x => ({key: x.baseline, value: x.text.length})));
+	
+	// Filter out all tokens that have smaller font or baseline than the most common values
+	tokens = tokens.filter(x => topFontSize - x.fontSize <= 1);
+	tokens = tokens.filter(x => topBaseline - x.baseline <= 1);
+	
+	tokens = tokens.map(x => x.text);
+	
+	// Split and inserted tokens containing more than one word separated with a conjunction
+	// i.e. "John Smith and Antonio Alvarez"
+	for (let i = 0; i < tokens.length;) {
+		let token = tokens[i];
+		let parts = token.split(/(?:^| )(?:and|und)(?:$| )/gi);
+		if (parts.length >= 2) {
+			parts = parts.filter(x => x);
+			tokens.splice(i, 1, ...parts);
+			i += parts.length;
+		}
+		else {
+			i++;
+		}
+	}
+	
+	// Trim non-alphabetic characters
+	tokens = tokens.map(x => XRegExp.replace(x, rxTrim, ''));
+	
+	let authors = [];
+	// console.log(tokens);
+	// Split tokens to separate names, validate them and construct authors array
+	for (let token of tokens) {
+		let names = token.split(/[\s\.]/).filter(x => x);
+		names = names.filter(x => !this.isSkipWord(x));
+		
+		// All names must start from upper case or be a surname prefix, otherwise stop parsing
+		if (!names.every(x => utils.isUpper(x[0]) || this.isPrefix(x))) break;
+		
+		// All authors must have between 2 and 4 names
+		if (names.length >= 2 && names.length <= 4) {
+			// Last name shouldn't be shorter than 2 chars, otherwise stop parsing
+			if (names.slice(-1)[0].length < 2) break;
+			authors.push(names.slice());
+		}
+		else if (names.length !== 0 && names.length !== 1) {
+			// Stop further parsing
+			break;
+		}
+	}
+	
+	return authors;
+};
+
 /**
  * Extracts authors from PDF file metadata,
  * when author names start with the first name and finish with the last name
+ * @param chars Authors lines
+ * @return {Promise<array>}
  */
-Authors.prototype.extractFromStringType1 = async function (str) {
+Authors.prototype.extractFromStringType1 = async function (chars) {
+	let rxToken = XRegExp('(?![Ææ])[\\p{Letter}\\p{Dash_Punctuation}’\'. ]');
+	let rxTrim = XRegExp('^[^\\p{Letter}]+|[^\\p{Letter}]+$', 'g');
+	
+	let tokens = [];
+	let token = '';
+	let prevChar = null;
+	for (let char of chars) {
+		if (!rxToken.test(char)) {
+			if (token) {
+				tokens.push(token);
+				token = '';
+			}
+		}
+		else {
+			token += char;
+		}
+		
+		prevChar = char;
+	}
+	
+	if (token) tokens.push(token);
+	
+	for (let i = 0; i < tokens.length;) {
+		let token = tokens[i];
+		let parts = token.split(/(?:^| )(?:and|und)(?:$| )/gi);
+		if (parts.length >= 2) {
+			parts = parts.filter(x => x);
+			tokens.splice(i, 1, ...parts);
+			i += parts.length;
+		}
+		else {
+			i++;
+		}
+	}
+	
+	tokens = tokens.map(x => XRegExp.replace(x, rxTrim, ''));
+	
 	let authors = [];
-	let names = [];
-	let name = '';
 	
-	let that = this;
-	
-	for (let i = 0; i < str.length; i++) {
-		
-		let c = str[i];
-		
-		function fn1() {
-			
-			if (!name.length) {
-				if ([' ', '.'].includes(c)) { // Skip all spaces before name
-					return 1;
-				}
-				
-				if (reg1.test(c) && !/[Ææ]/.test(c)) {
-					name += c;
-				}
-				else { // If symbol is not a letter
-					return 2;
-				}
-				
-			}
-			else {
-				if (reg2.test(c) && !/[Ææ]/.test(c)) {
-					name += c;
-				}
-				else if ([' ', '.'].includes(c)) { // if names separator
-					
-					if (that.isConjunction(name)) {
-						name = '';
-						return 2;
-					}
-					
-					if (that.isSkipWord(name)) {
-						name = '';
-						return 2;
-					}
-					
-					if (!utils.isUpper(name[0])) { // if name doesn't start with an upper case letter
-						name = '';
-						return 2;
-					}
-					
-					names.push(name.slice());
-					name = '';
-					
-					if (names.length >= 4) return 2;
-				}
-				else {
-					return 2;
-				}
-			}
-			
-			return 4;
-		}
-		
-		let r = fn1();
-		
-		if (r === 1) continue;
-		if (r === 4 && i < str.length - 1) continue;
-		
-		if (this.isConjunction(name)) name = '';
-		
-		if (this.isSkipWord(name)) name = '';
-		
-		
-		if (name.length) {
-			names.push(name.slice());
-			name = '';
-		}
-		
+	for (let token of tokens) {
+		let names = token.split(/[\s\.]/).filter(x => x);
+		names = names.filter(x => !this.isSkipWord(x));
+		if (!names.every(x => utils.isUpper(x[0]))) break;
 		if (names.length >= 2 && names.length <= 4) {
 			if (names.slice(-1)[0].length < 2) return 0;
-			authors.push({names: names.slice()});
+			authors.push(names.slice());
 		}
 		else if (names.length !== 0) {
 			break;
 		}
-		
-		name = '';
-		names = [];
 	}
 	
 	let result = [];
 	let found = false;
 	for (let author of authors) {
 		if (!found) {
-			for (let name of author.names) {
+			for (let name of author) {
 				if (name.length >= 3) {
-					let type = await this.getWordType(name);
+					let type = await this.getWordInfo(name);
 					if (type > 0) {
 						found = true;
 						break;
@@ -331,8 +282,8 @@ Authors.prototype.extractFromStringType1 = async function (str) {
 		
 		let firstName;
 		let lastName;
-		lastName = author.names.pop();
-		firstName = author.names.join(' ');
+		lastName = author.pop();
+		firstName = author.join(' ');
 		
 		result.push({firstName, lastName});
 	}
@@ -343,7 +294,9 @@ Authors.prototype.extractFromStringType1 = async function (str) {
 
 /**
  * Extracts authors from PDF file metadata,
- * when last name goes first and is separated with comma
+ * when the last name goes first and is separated with a comma
+ * @param str
+ * @return {Promise<array>}
  */
 Authors.prototype.extractFromStringType2 = async function (str) {
 	let parts = str.split(/[,;]|and|und/).map(str => str.trim());
@@ -375,7 +328,7 @@ Authors.prototype.extractFromStringType2 = async function (str) {
 		if (!found) {
 			for (let name of author) {
 				if (name.length >= 3) {
-					let type = await this.getWordType(name);
+					let type = await this.getWordInfo(name);
 					if (type > 0) {
 						found = true;
 						break;
@@ -396,11 +349,31 @@ Authors.prototype.extractFromStringType2 = async function (str) {
 	return null;
 };
 
+/**
+ * Blacklist words that are often encountered when extracting authors
+ * @param word
+ * @return {boolean}
+ */
 Authors.prototype.isWordBlacklisted = function (word) {
-	let list = ['university', 'school', 'public', 'institute'];
+	let list = ['the', 'university', 'school', 'public', 'institute', 'inc'];
 	return list.includes(word.toLowerCase());
 };
 
+/**
+ * Test if authors line has a reference.
+ * It increases confidence that we actually found authors line
+ * @param line
+ * @return {boolean}
+ */
+Authors.prototype.hasRef = function (line) {
+	return /\*|∗|⁎|†|‡|§|¶|⊥|¹|²|³|α|β|λ|ξ|ψ/g.test(line.text);
+};
+
+/**
+ * Extract authors from a line block
+ * @param lb
+ * @return {Promise<{authors: Array, conf: number}>}
+ */
 Authors.prototype.getAuthors = async function (lb) {
 	let confidence = 0;
 	let result = [];
@@ -408,10 +381,9 @@ Authors.prototype.getAuthors = async function (lb) {
 	for (let line of lb.lines) {
 		if (line.text.toLowerCase() === 'by') continue;
 		
-		// console.log('uline', line.text);
-		let ustr = this.lineToUstr(line);
+		let authors = this.extractFromLine(line);
 		
-		let authors = this.extractAuthorsFromUstr(ustr);
+		let ref = this.hasRef(line);
 		
 		if (!authors.length) return {
 			authors: result, conf: confidence
@@ -422,14 +394,14 @@ Authors.prototype.getAuthors = async function (lb) {
 			let positive = 0;
 			let lastNegativeValue = 0;
 			let stop = false;
-			for (let name of author.names) {
+			for (let name of author) {
 				if (this.isWordBlacklisted(name)) {
 					stop = true;
 					break;
 				}
-				if (name.length < 2) continue;
+				if (name.length < 2 || this.isPrefix(name)) continue;
 				
-				let type = await this.getWordType(name);
+				let type = await this.getWordInfo(name);
 				if (type < 0) {
 					negative++;
 					lastNegativeValue = type;
@@ -443,7 +415,7 @@ Authors.prototype.getAuthors = async function (lb) {
 			
 			let c = 0;
 			
-			if (author.ref) c = 2;
+			if (ref) c = 2;
 			
 			if (negative >= 2 || negative === author.length) {
 				break;
@@ -463,10 +435,16 @@ Authors.prototype.getAuthors = async function (lb) {
 			
 			let firstName;
 			let lastName;
-			lastName = author.names.pop();
-			firstName = author.names.join(' ');
-			result.push({firstName, lastName});
+			lastName = author.pop();
+			if (this.isPrefix(author.slice(-1))) {
+				lastName = author.pop() + ' ' + lastName;
+				if (this.isPrefix(author.slice(-1))) {
+					lastName = author.pop() + ' ' + lastName;
+				}
+			}
 			
+			firstName = author.join(' ');
+			result.push({firstName, lastName});
 		}
 	}
 	
@@ -475,6 +453,12 @@ Authors.prototype.getAuthors = async function (lb) {
 	};
 };
 
+/**
+ * Tests if two author arrays doesn't share the same authors
+ * @param authors1
+ * @param authors2
+ * @return {boolean}
+ */
 Authors.prototype.hasExistingAuthor = function (authors1, authors2) {
 	for (let author1 of authors1) {
 		for (let author2 of authors2) {
@@ -488,10 +472,14 @@ Authors.prototype.hasExistingAuthor = function (authors1, authors2) {
 
 /**
  * Extract more authors by searching for line blocks,
- * that are in the same horizontal line, or have the same font
+ * that are in the same horizontal line, or have the same font.
+ * Because initially we are extracting authors only from the line before
+ * or after the title, but some PDFs have authors in separate blocks
+ * @param lbs Line blocks
+ * @param lbi Title line block index
+ * @return {Promise<Array>}
  */
 Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
-	
 	let a1 = [];
 	let a2 = [];
 	
@@ -539,7 +527,10 @@ Authors.prototype.extractAdditionalAuthors = async function (lbs, lbi) {
 };
 
 /**
- * Tries to extract authors above and below given title line block
+ * Tries to extract authors above and below the title
+ * @param lbs Line blocks
+ * @param lbi Title line block index
+ * @return {Promise<Array>}
  */
 Authors.prototype.extractAuthorsNearTitle = async function (lbs, lbi) {
 	let alb;
@@ -554,11 +545,13 @@ Authors.prototype.extractAuthorsNearTitle = async function (lbs, lbi) {
 	
 	tlb = lbs[lbi];
 	
+	// Try the first line below
 	if (lbi + 1 < lbs.length) {
 		alb = lbs[lbi + 1];
 		a1 = await this.getAuthors(alb);
 	}
 	
+	// Try the second line below
 	if (lbi + 2 < lbs.length) {
 		alb = lbs[lbi + 2];
 		slb = lbs[lbi + 1];
@@ -568,13 +561,14 @@ Authors.prototype.extractAuthorsNearTitle = async function (lbs, lbi) {
 			total_chars += lines.text.length;
 		}
 		
-		if (total_chars < 300 /*&& slb.yMin - tlb.yMax < (alb.yMin - slb.yMax) * 2*/ &&
+		if (total_chars < 300 &&
 			tlb.maxFontSize >= slb.maxFontSize && tlb.maxFontSize >= alb.maxFontSize &&
 			tlb.yMax < slb.yMin && slb.yMax < alb.yMin) {
 			a2 = await this.getAuthors(alb);
 		}
 	}
 	
+	// Try the line bove
 	if (lbi > 0) {
 		alb = lbs[lbi - 1];
 		if (tlb.maxFontSize >= alb.maxFontSize && tlb.yMin > alb.yMax) {
